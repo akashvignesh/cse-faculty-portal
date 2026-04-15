@@ -566,6 +566,75 @@ table.dataTable tbody tr:hover td {
   padding: 16px;
 }
 
+.faculty-preference-search {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.faculty-preference-search input {
+  width: min(100%, 420px);
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #ccd2da;
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text-strong);
+  font-family: var(--font-body);
+}
+
+.faculty-preference-search input:focus {
+  outline: 0;
+  border-color: var(--ub-blue);
+  box-shadow: 0 0 0 3px rgba(0, 91, 187, 0.12);
+}
+
+.faculty-course-preference-select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #ccd2da;
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text-strong);
+  font-family: var(--font-body);
+}
+
+.faculty-course-preference-select:focus {
+  outline: 0;
+  border-color: var(--ub-blue);
+  box-shadow: 0 0 0 3px rgba(0, 91, 187, 0.12);
+}
+
+.faculty-preference-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.faculty-course-preference-submit {
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ub-blue);
+  color: #ffffff;
+  font-family: var(--font-body-strong);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.faculty-course-preference-submit:hover {
+  background: var(--ub-blue-deep);
+}
+
+.faculty-course-preference-feedback {
+  color: var(--ub-blue-deep);
+  font-family: var(--font-body-strong);
+  font-size: 0.92rem;
+}
+
 .faculty-secondary-section {
   display: grid;
   gap: 14px;

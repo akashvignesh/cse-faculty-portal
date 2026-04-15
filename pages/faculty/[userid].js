@@ -49,20 +49,24 @@ function formatCoursePreferencePriority(priority) {
     return "Not available";
   }
 
-  if (normalizedPriority === "1") {
+  if (normalizedPriority === "1" || normalizedPriority === "preference1") {
     return "Preferred 1";
   }
 
-  if (normalizedPriority === "2") {
+  if (normalizedPriority === "2" || normalizedPriority === "preference2") {
     return "Preferred 2";
   }
 
-  if (normalizedPriority === "3") {
+  if (normalizedPriority === "3" || normalizedPriority === "preference3") {
     return "Preferred 3";
   }
 
   if (normalizedPriority === "qualified") {
     return "Qualified";
+  }
+
+  if (normalizedPriority === "not qualified") {
+    return "Not Qualified";
   }
 
   if (normalizedPriority === "not interested" || normalizedPriority === "not_interested") {
@@ -139,9 +143,6 @@ export default function FacultyDetailPage() {
       ]
     : [];
 
-  const dashboardActiveTab =
-    activeTab === DETAIL_TABS.COURSE_PREFERENCE ? DETAIL_TABS.COURSE_PREFERENCE : "profile";
-
   function renderSecondarySection() {
     if (activeTab === DETAIL_TABS.RESEARCH_AREA) {
       return (
@@ -168,11 +169,11 @@ export default function FacultyDetailPage() {
 
     if (activeTab === DETAIL_TABS.COURSE_PREFERENCE) {
       return (
-        <div className="faculty-preference-section faculty-preference-section-inline">
+        <div className="faculty-secondary-section">
           <div className="faculty-preference-heading">
-            <h2>Teaching Preferences</h2>
+            <h2>Course Preference</h2>
+            <p>Current teaching preferences recorded for this faculty member.</p>
           </div>
-
           {faculty.coursePreferences.length > 0 ? (
             <div className="faculty-preference-table-wrapper">
               <table className="faculty-preference-table">
@@ -180,7 +181,7 @@ export default function FacultyDetailPage() {
                   <tr>
                     <th>Course Code</th>
                     <th>Course Name</th>
-                    <th>Priority</th>
+                    <th>Preference</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -196,7 +197,7 @@ export default function FacultyDetailPage() {
             </div>
           ) : (
             <div className="faculty-table-status" role="status">
-              No course preference data is available for this faculty record.
+              No current course preference data is available for this faculty record.
             </div>
           )}
         </div>
@@ -208,28 +209,29 @@ export default function FacultyDetailPage() {
         <div className="faculty-secondary-section">
           <div className="faculty-preference-heading">
             <h2>Leave</h2>
-            <p>Recorded leave items for this faculty member.</p>
           </div>
           {faculty.leaves.length > 0 ? (
             <div className="faculty-preference-table-wrapper">
               <table className="faculty-preference-table">
                 <thead>
                   <tr>
-                    <th>Leave ID</th>
                     <th>Leave Type</th>
                     <th>Start Date</th>
                     <th>End Date</th>
+                    <th>Location</th>
                     <th>Reason</th>
+                    <th>Backup Faculty Person Number</th>
                   </tr>
                 </thead>
                 <tbody>
                   {faculty.leaves.map((leave) => (
                     <tr key={leave.leaveId}>
-                      <td>{displayValue(leave.leaveId)}</td>
                       <td>{displayValue(leave.leaveType)}</td>
                       <td>{displayValue(leave.startDate)}</td>
                       <td>{displayValue(leave.endDate)}</td>
+                      <td>{displayValue(leave.location)}</td>
                       <td>{displayValue(leave.reason)}</td>
+                      <td>{displayValue(leave.backupFacultyPersonNumber)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -249,26 +251,21 @@ export default function FacultyDetailPage() {
         <div className="faculty-secondary-section">
           <div className="faculty-preference-heading">
             <h2>Committee</h2>
-            <p>Committee assignments associated with this faculty member.</p>
           </div>
           {faculty.committees.length > 0 ? (
             <div className="faculty-preference-table-wrapper">
               <table className="faculty-preference-table">
                 <thead>
                   <tr>
-                    <th>Committee ID</th>
                     <th>Committee Name</th>
                     <th>Role</th>
-                    <th>Term Code</th>
                   </tr>
                 </thead>
                 <tbody>
                   {faculty.committees.map((committee) => (
                     <tr key={committee.committeeId}>
-                      <td>{displayValue(committee.committeeId)}</td>
                       <td>{displayValue(committee.committeeName)}</td>
                       <td>{displayValue(committee.role)}</td>
-                      <td>{displayValue(committee.termCode)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -333,9 +330,8 @@ export default function FacultyDetailPage() {
             <table className="faculty-preference-table">
               <thead>
                 <tr>
-                  <th>Student ID</th>
-                  <th>Student Name</th>
-                  <th>Userid</th>
+                  <th>Student Person Number</th>
+                  <th>Full Name</th>
                   <th>Program</th>
                 </tr>
               </thead>
@@ -344,7 +340,6 @@ export default function FacultyDetailPage() {
                   <tr key={student.studentId}>
                     <td>{displayValue(student.studentId)}</td>
                     <td>{displayValue(student.studentName)}</td>
-                    <td>{displayValue(student.userid)}</td>
                     <td>{displayValue(student.program)}</td>
                   </tr>
                 ))}
@@ -396,17 +391,11 @@ export default function FacultyDetailPage() {
               <div className="faculty-detail-body">
                 <div className="faculty-detail-workspace">
                   <aside className="faculty-detail-dashboard">
-                    <div
-                      className="faculty-detail-dashboard-nav"
-                      role="tablist"
-                      aria-label="Faculty detail tabs"
-                    >
-                      <button
-                        type="button"
-                        className={`faculty-detail-dashboard-item ${dashboardActiveTab === "profile" ? "is-active" : ""}`}
-                        onClick={() => setActiveTab(DETAIL_TABS.RESEARCH_AREA)}
-                        role="tab"
-                        aria-selected={dashboardActiveTab === "profile"}
+                    <nav className="faculty-detail-dashboard-nav" aria-label="Faculty detail pages">
+                      <Link
+                        className="faculty-detail-dashboard-item is-active"
+                        href={userid ? `/faculty/${userid}` : "/"}
+                        aria-current="page"
                       >
                         <span className="faculty-detail-dashboard-icon" aria-hidden="true">
                           <svg
@@ -418,14 +407,11 @@ export default function FacultyDetailPage() {
                           </svg>
                         </span>
                         Profile
-                      </button>
+                      </Link>
 
-                      <button
-                        type="button"
-                        className={`faculty-detail-dashboard-item ${activeTab === DETAIL_TABS.COURSE_PREFERENCE ? "is-active" : ""}`}
-                        onClick={() => setActiveTab(DETAIL_TABS.COURSE_PREFERENCE)}
-                        role="tab"
-                        aria-selected={activeTab === DETAIL_TABS.COURSE_PREFERENCE}
+                      <Link
+                        className="faculty-detail-dashboard-item"
+                        href={userid ? `/faculty/${userid}/course-preference` : "/"}
                       >
                         <span className="faculty-detail-dashboard-icon" aria-hidden="true">
                           <svg
@@ -436,9 +422,9 @@ export default function FacultyDetailPage() {
                             <path d="M3 4.25h10v1.5H3Zm0 3h10v1.5H3Zm0 3h10v1.5H3Z" />
                           </svg>
                         </span>
-                        Course Preference
-                      </button>
-                    </div>
+                        Edit Course Preference
+                      </Link>
+                    </nav>
                   </aside>
 
                   <div className="faculty-detail-content">

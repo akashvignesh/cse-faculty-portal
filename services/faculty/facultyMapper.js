@@ -12,6 +12,51 @@ function normalizeStringArray(value) {
     .filter(Boolean);
 }
 
+function formatOfficeAddress(address) {
+  if (!address || typeof address === "string") {
+    return normalizeField(address);
+  }
+
+  return normalizeStringArray([
+    address.line1,
+    address.line2,
+    [address.city, address.state, address.postalCode].filter(Boolean).join(" "),
+    address.country,
+  ]).join(", ");
+}
+
+function formatOfficeAddressLines(address) {
+  if (!address || typeof address === "string") {
+    const normalizedAddress = normalizeField(address);
+    return normalizedAddress ? [normalizedAddress] : [];
+  }
+
+  return normalizeStringArray([
+    address.line1,
+    address.line2,
+    [address.city, address.state, address.postalCode].filter(Boolean).join(", "),
+    address.country,
+  ]);
+}
+
+function deriveUserid(record) {
+  const explicitUserid = normalizeField(record?.userid ?? record?.userId ?? record?.user_id);
+
+  if (explicitUserid) {
+    return explicitUserid;
+  }
+
+  const email = normalizeField(
+    record?.primaryEmail ?? record?.primary_email ?? record?.contact?.email
+  );
+
+  if (!email || !email.includes("@")) {
+    return "";
+  }
+
+  return email.split("@")[0];
+}
+
 function pickOfficeAddress(record) {
   return normalizeField(
     record?.officeAddress ?? record?.office_address ?? record?.office ?? record?.address
@@ -19,6 +64,8 @@ function pickOfficeAddress(record) {
 }
 
 function mapCoursePreference(preference, index) {
+  const coursePreference = normalizeField(preference?.coursePref ?? preference?.course_pref);
+
   return {
     teachingPreferenceId: normalizeField(
       preference?.teachingPreferenceId ??
@@ -27,11 +74,16 @@ function mapCoursePreference(preference, index) {
       String(index + 1)
     ),
     termCode: normalizeField(preference?.termCode ?? preference?.term_code),
-    courseCode: normalizeField(preference?.courseCode ?? preference?.course_code),
-    preferredCourseName: normalizeField(
-      preference?.preferredCourseName ?? preference?.preferred_course_name ?? preference?.courseName
+    courseCode: normalizeField(
+      preference?.courseCode ?? preference?.course_code ?? preference?.courseId ?? preference?.course_id
     ),
-    priority: preference?.priority ?? "",
+    preferredCourseName: normalizeField(
+      preference?.preferredCourseName ??
+        preference?.preferred_course_name ??
+        preference?.courseName ??
+        preference?.course_name
+    ),
+    priority: preference?.priority ?? coursePreference,
   };
 }
 
@@ -41,7 +93,27 @@ function mapLeaveItem(leave, index) {
     leaveType: normalizeField(leave?.leaveType ?? leave?.leave_type),
     startDate: normalizeField(leave?.startDate ?? leave?.start_date),
     endDate: normalizeField(leave?.endDate ?? leave?.end_date),
+    location: normalizeField(leave?.location),
     reason: normalizeField(leave?.reason),
+    backupFacultyPersonNumber: normalizeField(
+      leave?.backupFacultyPersonNumber ?? leave?.backup_faculty_person_number
+    ),
+  };
+}
+
+function mapTeachingReductionItem(reduction, index) {
+  return {
+    teachingReductionId: normalizeField(
+      reduction?.teachingReductionId ?? reduction?.teaching_reduction_id ?? `TR-${index + 1}`
+    ),
+    termCode: normalizeField(reduction?.termCode ?? reduction?.term_code),
+    reductionType: normalizeField(reduction?.reductionType ?? reduction?.reduction_type),
+    reductionAmount: reduction?.reductionAmount ?? reduction?.reduction_amount ?? "",
+    reason: normalizeField(reduction?.reason),
+    approvalDocumentId: normalizeField(
+      reduction?.approvalDocumentId ?? reduction?.approval_document_id
+    ),
+    createdAt: normalizeField(reduction?.createdAt ?? reduction?.created_at),
   };
 }
 
@@ -67,18 +139,26 @@ function mapAwardItem(award, index) {
 
 function mapStudentItem(student, index) {
   return {
-    studentId: normalizeField(student?.studentId ?? student?.student_id ?? `S-${index + 1}`),
-    studentName: normalizeField(student?.studentName ?? student?.student_name ?? student?.name),
+    studentId: normalizeField(
+      student?.studentId ?? student?.student_id ?? student?.studentPersonNumber ?? `S-${index + 1}`
+    ),
+    studentName: normalizeField(
+      student?.studentName ?? student?.student_name ?? student?.fullName ?? student?.name
+    ),
     userid: normalizeField(student?.userid ?? student?.userId ?? student?.user_id),
     program: normalizeField(student?.program),
   };
 }
 
 export function mapFacultyRecord(record, index) {
+  const contactOfficeAddress = record?.contact?.officeAddress;
+  const contactEmail = normalizeField(record?.contact?.email);
   const mappedRecord = {
-    name: normalizeField(record?.name),
-    userid: normalizeField(record?.userid ?? record?.userId ?? record?.user_id),
-    officeAddress: pickOfficeAddress(record),
+    name: normalizeField(record?.name ?? record?.fullName),
+    userid: deriveUserid(record),
+    officeAddress: normalizeField(
+      pickOfficeAddress(record) || formatOfficeAddress(contactOfficeAddress)
+    ),
     personNumber: normalizeField(record?.personNumber ?? record?.person_number),
     standardLoad: normalizeField(record?.standardLoad ?? record?.standard_load),
     nextPromotionDate: normalizeField(
@@ -91,12 +171,15 @@ export function mapFacultyRecord(record, index) {
       record?.profilePhotoDocumentId ?? record?.profile_photo_document_id
     ),
     cvDocumentId: normalizeField(record?.cvDocumentId ?? record?.cv_document_id),
-    titleLine: normalizeField(record?.titleLine ?? record?.title_line),
+    profilePhotoUrl: normalizeField(record?.profilePhotoUrl ?? record?.profile_photo_url),
+    titleLine: normalizeField(record?.titleLine ?? record?.title_line ?? record?.title),
     statusMessage: normalizeField(record?.statusMessage ?? record?.status_message),
-    primaryEmail: normalizeField(record?.primaryEmail ?? record?.primary_email),
+    primaryEmail: normalizeField(record?.primaryEmail ?? record?.primary_email ?? contactEmail),
     secondaryEmail: normalizeField(record?.secondaryEmail ?? record?.secondary_email),
     physicalAddressLines: normalizeStringArray(
-      record?.physicalAddressLines ?? record?.physical_address_lines
+      record?.physicalAddressLines ??
+        record?.physical_address_lines ??
+        formatOfficeAddressLines(contactOfficeAddress)
     ),
     mailingAddressLines: normalizeStringArray(
       record?.mailingAddressLines ?? record?.mailing_address_lines
@@ -104,18 +187,30 @@ export function mapFacultyRecord(record, index) {
     socialLinks: normalizeStringArray(record?.socialLinks ?? record?.social_links),
     pronouns: normalizeField(record?.pronouns),
     primaryAppointment: normalizeField(
-      record?.primaryAppointment ?? record?.primary_appointment
+      record?.primaryAppointment ?? record?.primary_appointment ?? record?.rank
     ),
-    researchTopics: normalizeStringArray(record?.researchTopics ?? record?.research_topics),
+    researchTopics: normalizeStringArray(
+      record?.researchTopics ?? record?.research_topics ?? record?.researchAreas ?? record?.research_areas
+    ),
     createdAt: normalizeField(record?.createdAt ?? record?.created_at),
     updatedAt: normalizeField(record?.updatedAt ?? record?.updated_at),
-    leaves: normalizeArray(record?.leaves ?? record?.leave).map(mapLeaveItem),
+    leaves: normalizeArray(record?.leaves ?? record?.leave ?? record?.leaveSummary ?? record?.leave_summary).map(
+      mapLeaveItem
+    ),
     committees: normalizeArray(record?.committees ?? record?.committee).map(mapCommitteeItem),
     awards: normalizeArray(record?.awards ?? record?.award).map(mapAwardItem),
-    students: normalizeArray(record?.students ?? record?.student).map(mapStudentItem),
+    students: normalizeArray(
+      record?.students ?? record?.student ?? record?.studentsUnderProfessor ?? record?.students_under_professor
+    ).map(mapStudentItem),
     coursePreferences: normalizeArray(
-      record?.coursePreferences ?? record?.course_preferences
+      record?.coursePreferences ??
+        record?.course_preferences ??
+        record?.teachingPreferences ??
+        record?.teaching_preferences
     ).map(mapCoursePreference),
+    teachingReductions: normalizeArray(
+      record?.teachingReductions ?? record?.teaching_reductions
+    ).map(mapTeachingReductionItem),
   };
 
   if (!mappedRecord.name || !mappedRecord.userid || !mappedRecord.officeAddress) {
@@ -132,8 +227,12 @@ export function mapFacultyCollection(payload) {
     ? payload
     : Array.isArray(payload?.data)
       ? payload.data
+      : payload?.data && typeof payload.data === "object"
+        ? [payload.data]
       : Array.isArray(payload?.faculty)
         ? payload.faculty
+        : payload?.faculty && typeof payload.faculty === "object"
+          ? [payload.faculty]
         : null;
 
   if (!rawItems) {
