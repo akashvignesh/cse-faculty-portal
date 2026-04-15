@@ -1,5 +1,5 @@
 {
-  "name": "cse-phd-portal",
+  "name": "cse-faculty-portal",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "datatables.net-dt": "^2.3.7",
     "next": "14.2.3",
     "react": "^18",
     "react-dom": "^18"

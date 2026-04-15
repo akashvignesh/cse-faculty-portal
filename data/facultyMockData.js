@@ -1,0 +1,246 @@
+export const facultyMockData = [
+  {
+    name: "John Smith",
+    userid: "jsmith",
+    officeAddress: "Davis Hall 101",
+    personNumber: "10000001",
+    titleLine: "Associate Professor of Computer Science and Engineering",
+    statusMessage: "jsmith doing business as jsmith in role faculty",
+    primaryEmail: "jsmith@buffalo.edu",
+    secondaryEmail: "john.smith@research.buffalo.edu",
+    physicalAddressLines: [
+      "Davis Hall 101",
+      "Buffalo, NY 14260-2500 USA",
+    ],
+    mailingAddressLines: [
+      "338 Davis Hall",
+      "Buffalo, NY 14260-2500 USA",
+    ],
+    socialLinks: [
+      "scholar.google.com/citations?user=jsmith",
+      "linkedin.com/in/john-smith-cse",
+    ],
+    pronouns: "He/Him/His",
+    primaryAppointment: "Associate Professor",
+    researchTopics: [
+      "Distributed systems",
+      "Cloud infrastructure",
+      "Systems security",
+    ],
+    leaves: [
+      {
+        leaveId: "L-1001",
+        leaveType: "Sabbatical",
+        startDate: "2026-08-20",
+        endDate: "2027-01-15",
+        reason: "Industry collaboration and research leave",
+      },
+    ],
+    committees: [
+      {
+        committeeId: "C-1001",
+        committeeName: "Graduate Admissions",
+        role: "Chair",
+        termCode: "2026FA",
+      },
+    ],
+    awards: [
+      {
+        awardId: "A-1001",
+        awardName: "SEAS Research Excellence Award",
+        awardYear: "2025",
+        organization: "University at Buffalo",
+      },
+    ],
+    students: [
+      {
+        studentId: "S-1001",
+        studentName: "Maya Chen",
+        userid: "mchen8",
+        program: "PhD",
+      },
+      {
+        studentId: "S-1002",
+        studentName: "Rafael Gomez",
+        userid: "rgomez3",
+        program: "PhD",
+      },
+    ],
+    standardLoad: "2-1",
+    nextPromotionDate: "2027-08-15",
+    backupFacultyPersonNumber: "10000002",
+    profilePhotoDocumentId: "DOC-3001",
+    cvDocumentId: "DOC-4001",
+    createdAt: "2024-01-10 09:15:00",
+    updatedAt: "2026-04-10 14:20:00",
+    coursePreferences: [
+      {
+        teachingPreferenceId: "TP-1001",
+        termCode: "2026SP",
+        courseCode: "CSE521",
+        preferredCourseName: "Introduction to Operating Systems",
+        priority: 1,
+      },
+      {
+        teachingPreferenceId: "TP-1002",
+        termCode: "2026SP",
+        courseCode: "CSE573",
+        preferredCourseName: "Computer Vision and Image Processing",
+        priority: 2,
+      },
+    ],
+  },
+  {
+    name: "Alice Brown",
+    userid: "abrown",
+    officeAddress: "Bell Hall 220",
+    personNumber: "10000002",
+    titleLine: "Teaching Professor of Computer Science and Engineering",
+    statusMessage: "abrown doing business as abrown in role faculty",
+    primaryEmail: "abrown@buffalo.edu",
+    secondaryEmail: "alice.brown@buffalo.edu",
+    physicalAddressLines: [
+      "Bell Hall 220",
+      "Buffalo, NY 14260-2500 USA",
+    ],
+    mailingAddressLines: [
+      "220 Bell Hall",
+      "Buffalo, NY 14260-2500 USA",
+    ],
+    socialLinks: [
+      "cse.buffalo.edu/~abrown",
+    ],
+    pronouns: "She/Her/Hers",
+    primaryAppointment: "Teaching Professor",
+    researchTopics: [
+      "Computing education",
+      "Curriculum design",
+    ],
+    leaves: [
+      {
+        leaveId: "L-2001",
+        leaveType: "Course Release",
+        startDate: "2026-01-12",
+        endDate: "2026-05-10",
+        reason: "Curriculum redesign",
+      },
+    ],
+    committees: [
+      {
+        committeeId: "C-2001",
+        committeeName: "Undergraduate Curriculum",
+        role: "Member",
+        termCode: "2026SP",
+      },
+    ],
+    awards: [
+      {
+        awardId: "A-2001",
+        awardName: "Teaching Innovation Award",
+        awardYear: "2024",
+        organization: "School of Engineering and Applied Sciences",
+      },
+    ],
+    students: [
+      {
+        studentId: "S-2001",
+        studentName: "Nina Patel",
+        userid: "npatel7",
+        program: "MS",
+      },
+    ],
+    standardLoad: "1-1",
+    nextPromotionDate: "2028-01-05",
+    backupFacultyPersonNumber: "10000003",
+    profilePhotoDocumentId: "DOC-3002",
+    cvDocumentId: "DOC-4002",
+    createdAt: "2023-09-22 11:40:00",
+    updatedAt: "2026-03-18 10:05:00",
+    coursePreferences: [
+      {
+        teachingPreferenceId: "TP-2001",
+        termCode: "2026FA",
+        courseCode: "CSE331",
+        preferredCourseName: "Algorithms and Complexity",
+        priority: 1,
+      },
+      {
+        teachingPreferenceId: "TP-2002",
+        termCode: "2026FA",
+        courseCode: "CSE431",
+        preferredCourseName: "Database Systems",
+        priority: 2,
+      },
+    ],
+  },
+  {
+    name: "Robert Lee",
+    userid: "rlee",
+    officeAddress: "Furnas Hall 310",
+    personNumber: "10000003",
+    titleLine: "Assistant Professor of Computer Science and Engineering",
+    statusMessage: "rlee doing business as rlee in role faculty",
+    primaryEmail: "rlee@buffalo.edu",
+    secondaryEmail: "robert.lee@cse.buffalo.edu",
+    physicalAddressLines: [
+      "Furnas Hall 310",
+      "Buffalo, NY 14260-2500 USA",
+    ],
+    mailingAddressLines: [
+      "310 Furnas Hall",
+      "Buffalo, NY 14260-2500 USA",
+    ],
+    socialLinks: [
+      "github.com/rlee-cse",
+      "scholar.google.com/citations?user=rlee",
+    ],
+    pronouns: "He/Him/His",
+    primaryAppointment: "Assistant Professor",
+    researchTopics: [
+      "Machine learning",
+      "Computer vision",
+      "Responsible AI",
+    ],
+    leaves: [],
+    committees: [
+      {
+        committeeId: "C-3001",
+        committeeName: "Faculty Search",
+        role: "Member",
+        termCode: "2026FA",
+      },
+    ],
+    awards: [
+      {
+        awardId: "A-3001",
+        awardName: "Early Career Research Grant",
+        awardYear: "2026",
+        organization: "NSF",
+      },
+    ],
+    students: [
+      {
+        studentId: "S-3001",
+        studentName: "Haruto Sato",
+        userid: "hsato2",
+        program: "PhD",
+      },
+    ],
+    standardLoad: "2-2",
+    nextPromotionDate: "2026-11-01",
+    backupFacultyPersonNumber: "",
+    profilePhotoDocumentId: "DOC-3003",
+    cvDocumentId: "DOC-4003",
+    createdAt: "2022-06-14 08:00:00",
+    updatedAt: "2026-02-27 16:45:00",
+    coursePreferences: [
+      {
+        teachingPreferenceId: "TP-3001",
+        termCode: "2026SP",
+        courseCode: "CSE474",
+        preferredCourseName: "Introduction to Machine Learning",
+        priority: 1,
+      },
+    ],
+  },
+];

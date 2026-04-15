@@ -1,0 +1,140 @@
+@font-face {
+	font-family: "Sofia Pro Light";
+	src: url("/fonts/SofiaPro-Light.woff") format("woff");
+}
+
+@font-face {
+	font-family: "Sofia Pro";
+	src: url("/fonts/SofiaPro-Regular.woff") format("woff");
+}
+
+@font-face {
+	font-family: "More Pro";
+	src: url("/fonts/MorePro-Medium.woff") format("woff");
+}
+
+body {
+	/* account for nabvar positioning navbar is 50px high */
+	margin-top: 60px;
+	font-family: "Sofia Pro Light", Arial, sans-serif;
+}
+
+h1,h2,h3,h4,h5,h6 {
+	font-family: "More Pro", Georgia, serif;
+}
+
+/* bootstrap overrides */
+.btn-xl {
+	padding: 1rem 2rem;
+	font-size: 2.5rem;
+	line-height: 3rem;
+	border-radius: .6rem; 
+}
+	
+.btn-xs {
+	padding: .1rem .4rem;
+	font-size: .8rem;
+	line-height: 1rem;
+	border-radius: .2rem; 
+}
+	
+.padding-top {
+	padding-top: 20px;
+}
+
+.spacer-bottom {
+	margin-bottom: 30px;
+}
+
+.jumbotron-header {
+	color: white;
+	text-shadow: 2px 2px 2px #000;
+	text-align: center;
+	background-image: url("../img/davis1.png");
+	background-size: cover;
+	background-position: center;
+}
+
+.formgroup {
+        margin-bottom: 10px;
+}
+
+.dashboard-item {
+	text-align: center;
+}
+
+.dashboard-item h1 {
+	font-size: 2em;
+	margin-bottom: 30px;
+}
+
+.error {
+	color: #990000;
+}
+
+/* bootstrap modal */
+.modal-title {
+        text-transform: capitalize;
+}
+
+/* datatable overrides */
+.datatable {
+	font-size: .85em;
+}
+
+/* interview scheduler */
+table.timetable td {
+        //cursor: pointer;
+}
+
+.carousel-control.left,
+.carousel-control.right {
+}
+
+.carousel-control {
+        width: 0px;
+        color: #337ab7;
+}
+
+/* office hours */
+.exdate .panel {
+        position: relative;
+        padding: 0px;
+}
+.exdate .panel-heading {
+        font-weight: bold;
+        //text-shadow: 1px 1px #FFF;
+}
+.exdate .panel-body {
+        font-weight: bold;
+        font-size: 2.8em;
+        line-height: 1em;
+        padding: 15px 0px;
+}
+.exdate .modal-buttons {
+        position: absolute;
+        top: 5px;
+        right: 20px;
+        display: none;
+}
+.exdate .modal-buttons:hover {
+        display: block;
+}
+.exdate .panel:hover + .modal-buttons {
+        display: block;
+}
+
+/* additional column width for bootstrap */
+.col-half {
+	.make-col(0.5);
+}
+
+.w-20 {
+	width: 10% !important;
+}
+.w-20 {
+	width: 20% !important;
+}
+
+
+

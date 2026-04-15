@@ -1,70 +1,40 @@
-# CSE PhD Manager Portal — University at Buffalo
+# CSE Faculty Portal
 
-A Next.js replication of the UB CSE PhD Manager Portal with full DataTables integration.
+Single-page Next.js application for the CSE department faculty listing.
 
-## 🚀 Quick Start
+## Run
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Start development server
 npm run dev
-
-# 3. Open in browser
-http://localhost:3000
 ```
 
-## 📦 DataTables Plugins Included
+Open `http://localhost:3000`.
 
-All loaded via CDN in `pages/_document.js`:
+## Environment Modes
 
-| Plugin | Purpose |
-|--------|---------|
-| **DataTables Core** v2.0.7 | Sorting, searching, pagination |
-| **Buttons** v3.0.2 | Export to CSV, Excel, PDF, Print, Copy |
-| **Select** v2.0.3 | Row selection (multi-row) |
-| **Responsive** v3.0.2 | Mobile-responsive column collapsing |
-| **SearchPanes** v2.3.1 | Faceted filtering panels |
-| **JSZip** | Required for Excel export |
-| **PDFMake** | Required for PDF export |
+Create `.env.local` from the example values below.
 
-## 🏗️ Project Structure
+### Local mode
 
-```
-cse-phd-portal/
-├── pages/
-│   ├── _app.js          ← Global CSS import
-│   ├── _document.js     ← CDN scripts (jQuery + DataTables)
-│   └── index.js         ← Main portal page
-├── styles/
-│   └── globals.css      ← All styles + DataTables overrides
-├── next.config.js
-└── package.json
+```bash
+NEXT_PUBLIC_FACULTY_DATA_MODE=local
+NEXT_PUBLIC_FACULTY_API_URL=
 ```
 
-## ✨ Features
+Local mode uses only the sample faculty data in `data/facultyMockData.js`.
 
-- **UB Branding** — UB logo, blue color scheme, department header
-- **Sidebar Navigation** — Introduction, Roster, Alerts (with badge), Teaching Prefs, Dashboard, Reports, Settings, Sign Out
-- **PhD Roster Table** — 15 sample PhD students with:
-  - Avatar initials with colored backgrounds
-  - Clickable name & userid links
-  - Campus office address
-  - Faculty Advisors #1 and #2
-  - Editable Funding Source dropdown
-  - Funding editor & timestamp
-- **DataTables Features**:
-  - Sort any column (↑↓)
-  - Search/filter across all columns
-  - Pagination with entries-per-page control
-  - Export buttons: Copy · CSV · Excel · PDF · Print
-  - Column visibility toggle
-  - Multi-row selection
-  - Responsive layout for mobile
+### Dev mode
 
-## 🎨 Design Notes
+```bash
+NEXT_PUBLIC_FACULTY_DATA_MODE=dev
+NEXT_PUBLIC_FACULTY_API_URL=https://your-api.example.com/faculty
+```
 
-- Font: IBM Plex Sans + IBM Plex Mono (via Google Fonts)
-- Color palette: UB Blue (#005bbb), dark navy table header, clean whites
-- DataTables styled to match UB branding (blue header rows, hover states)
+Dev mode calls the configured API only. If the API URL is missing or the request fails, the UI shows an explicit error and does not substitute mock data.
+
+## Notes
+
+- The header branding uses copied assets from `D:\Code\cse-style\web`.
+- Editor assets from `C:\Users\Windows\Downloads\Editor-NodeJS-2.5.2\Editor-NodeJS-2.5.2` are copied into `public/vendor/editor`.
+- The supplied Editor JavaScript is an expired trial build dated `2026-04-04`, so it is not executed by the live page.
