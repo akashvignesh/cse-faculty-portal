@@ -4,12 +4,14 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import FacultyPortalHeader from "../../../components/FacultyPortalHeader";
 import PortalFooter from "../../../components/PortalFooter";
+import DataTableView from "../../../components/DataTableView";
 import { APP_TITLE, getAppConfig } from "../../../config/appConfig";
 import { courseCatalogMockData } from "../../../data/courseCatalogMockData";
 import {
   findFacultyByUserid,
   loadFacultyRecords,
 } from "../../../services/faculty/facultyService";
+import { createFacultyDetailTableConfig } from "../../../services/faculty/facultyTableConfig";
 
 const TAB_KEYS = {
   ALL: "all",
@@ -17,7 +19,6 @@ const TAB_KEYS = {
 };
 
 const PREFERENCE_OPTIONS = [
-  { value: "", label: "Select preference" },
   { value: "preference1", label: "Preference 1" },
   { value: "preference2", label: "Preference 2" },
   { value: "preference3", label: "Preference 3" },
@@ -27,22 +28,6 @@ const PREFERENCE_OPTIONS = [
 
 function displayValue(value) {
   return value ? value : "Not available";
-}
-
-function formatPreferenceLabel(value) {
-  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
-
-  if (!normalized) {
-    return "Not available";
-  }
-
-  const option = PREFERENCE_OPTIONS.find((entry) => entry.value === normalized);
-
-  if (option) {
-    return option.label;
-  }
-
-  return value;
 }
 
 function normalizeSearch(value) {
@@ -65,10 +50,6 @@ export default function FacultyCoursePreferencePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [activeTab, setActiveTab] = useState(TAB_KEYS.ALL);
-  const [searchTerms, setSearchTerms] = useState({
-    [TAB_KEYS.ALL]: "",
-    [TAB_KEYS.PREFERRED]: "",
-  });
   const [selections, setSelections] = useState({});
   const [submitMessage, setSubmitMessage] = useState("");
 
@@ -136,41 +117,17 @@ export default function FacultyCoursePreferencePage() {
   }, [courseSelections, faculty]);
 
   const filteredAllCourses = useMemo(() => {
-    const searchTerm = normalizeSearch(searchTerms[TAB_KEYS.ALL]);
-
-    return courseCatalogMockData.filter((course) => {
-      if (!searchTerm) {
-        return true;
-      }
-
-      return [course.subject, course.courseName, formatPreferenceLabel(selections[courseSelectionKey(course)])]
-        .join(" ")
-        .toLowerCase()
-        .includes(searchTerm);
-    });
-  }, [searchTerms, selections]);
+    return courseCatalogMockData;
+  }, []);
 
   const preferredCourseRows = useMemo(() => {
-    const searchTerm = normalizeSearch(searchTerms[TAB_KEYS.PREFERRED]);
+    return courseCatalogMockData.filter((course) => Boolean(selections[courseSelectionKey(course)]));
+  }, [selections]);
 
-    return courseCatalogMockData
-      .filter((course) => Boolean(selections[courseSelectionKey(course)]))
-      .filter((course) => {
-        if (!searchTerm) {
-          return true;
-        }
-
-        return [course.subject, course.courseName, formatPreferenceLabel(selections[courseSelectionKey(course)])]
-          .join(" ")
-          .toLowerCase()
-          .includes(searchTerm);
-      });
-  }, [searchTerms, selections]);
-
-  function updateSelection(course, nextValue) {
+  function updateSelection(course, isSelected) {
     setSelections((currentSelections) => ({
       ...currentSelections,
-      [courseSelectionKey(course)]: nextValue,
+      [courseSelectionKey(course)]: isSelected,
     }));
     setSubmitMessage("");
   }
@@ -186,9 +143,26 @@ export default function FacultyCoursePreferencePage() {
       return <div className="faculty-table-status" role="status">No courses match the current search.</div>;
     }
 
+    const selectionRefreshKey = Object.entries(selections)
+      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+      .map(([key, value]) => `${key}:${value}`)
+      .join("|");
+    const tableRefreshKey = [
+      activeTab,
+      courses.length,
+      selectionRefreshKey,
+    ].join("-");
+
     return (
-      <div className="faculty-preference-table-wrapper">
-        <table className="faculty-preference-table">
+      <DataTableView
+        key={tableRefreshKey}
+        config={createFacultyDetailTableConfig({
+          filename: `${faculty.userid}-${activeTab}-course-preferences`,
+          title: `${faculty.name} ${activeTab === TAB_KEYS.ALL ? "All Courses" : "Preferred Courses"}`,
+          showButtons: false,
+        })}
+        refreshKey={tableRefreshKey}
+      >
           <thead>
             <tr>
               <th>Subject</th>
@@ -206,25 +180,34 @@ export default function FacultyCoursePreferencePage() {
                   <td>{displayValue(course.subject)}</td>
                   <td>{displayValue(course.courseName)}</td>
                   <td>
-                    <select
-                      className="faculty-course-preference-select"
-                      value={currentPreference}
-                      onChange={(event) => updateSelection(course, event.target.value)}
-                      aria-label={`Preference for ${course.courseName}`}
-                    >
+                    <div className="faculty-course-preference-checkbox-group">
                       {PREFERENCE_OPTIONS.map((option) => (
-                        <option key={option.value || "blank"} value={option.value}>
-                          {option.label}
-                        </option>
+                        <label
+                          className="faculty-course-preference-checkbox-label"
+                          key={option.value}
+                        >
+                          <input
+                            type="checkbox"
+                            className="faculty-course-preference-checkbox"
+                            checked={currentPreference === option.value}
+                            onChange={(event) =>
+                              updateSelection(
+                                course,
+                                event.target.checked ? option.value : ""
+                              )
+                            }
+                            aria-label={`${option.label} for ${course.courseName}`}
+                          />
+                          <span>{option.label}</span>
+                        </label>
                       ))}
-                    </select>
+                    </div>
                   </td>
                 </tr>
               );
             })}
           </tbody>
-        </table>
-      </div>
+      </DataTableView>
     );
   }
 
@@ -347,21 +330,6 @@ export default function FacultyCoursePreferencePage() {
                           <div className="faculty-secondary-section faculty-preference-section-inline">
                             <div className="faculty-preference-heading">
                               <h3>{activeTab === TAB_KEYS.ALL ? "All Courses" : "Preferred Courses"}</h3>
-                            </div>
-
-                            <div className="faculty-preference-search">
-                              <input
-                                type="search"
-                                value={searchTerms[activeTab]}
-                                onChange={(event) =>
-                                  setSearchTerms((current) => ({
-                                    ...current,
-                                    [activeTab]: event.target.value,
-                                  }))
-                                }
-                                placeholder="Search by subject, course name, or preference"
-                                aria-label={`Search ${activeTab === TAB_KEYS.ALL ? "all courses" : "preferred courses"}`}
-                              />
                             </div>
 
                             {activeTab === TAB_KEYS.ALL

@@ -4,20 +4,25 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import FacultyPortalHeader from "../../components/FacultyPortalHeader";
 import PortalFooter from "../../components/PortalFooter";
+import DataTableView from "../../components/DataTableView";
 import { APP_TITLE, getAppConfig } from "../../config/appConfig";
 import {
   findFacultyByUserid,
   loadFacultyRecords,
 } from "../../services/faculty/facultyService";
+import { createFacultyDetailTableConfig } from "../../services/faculty/facultyTableConfig";
 
 const DETAIL_TABS = {
   RESEARCH_AREA: "research-area",
+  TEACHING_HISTORY: "teaching-history",
   COURSE_PREFERENCE: "course-preference",
   LEAVE: "leave",
   COMMITTEE: "committee",
   AWARDS: "awards",
   STUDENT: "student",
 };
+
+const TEACHING_TERM_ORDER = ["spring", "summer", "fall"];
 
 function displayValue(value) {
   return value ? value : "Not available";
@@ -76,6 +81,72 @@ function formatCoursePreferencePriority(priority) {
   return displayValue(String(priority));
 }
 
+function formatTerm(term) {
+  if (!term) {
+    return "Not available";
+  }
+
+  return term.charAt(0).toUpperCase() + term.slice(1);
+}
+
+function toggleFilterValue(values, value) {
+  const normalizedValue = String(value);
+
+  if (values.includes(normalizedValue)) {
+    return values.filter((currentValue) => currentValue !== normalizedValue);
+  }
+
+  return [...values, normalizedValue];
+}
+
+function TeachingHistoryFilterDropdown({
+  label,
+  values,
+  selectedValues,
+  onToggle,
+  onClear,
+  formatValue = String,
+}) {
+  const selectedSet = new Set(selectedValues);
+  const summaryText =
+    selectedValues.length > 0
+      ? `${label}: ${selectedValues.map((value) => formatValue(value)).join(", ")}`
+      : `${label}: All`;
+
+  return (
+    <details className="faculty-history-filter">
+      <summary className="faculty-history-filter-trigger">
+        <span>{summaryText}</span>
+        <span className="faculty-history-filter-caret" aria-hidden="true">
+          &#9662;
+        </span>
+      </summary>
+      <div className="faculty-history-filter-menu">
+        <div className="faculty-history-filter-menu-title">{label}</div>
+        {values.map((value) => {
+          const normalizedValue = String(value);
+
+          return (
+            <label className="faculty-history-filter-option" key={normalizedValue}>
+              <input
+                type="checkbox"
+                checked={selectedSet.has(normalizedValue)}
+                onChange={() => onToggle(normalizedValue)}
+              />
+              <span>{formatValue(normalizedValue)}</span>
+            </label>
+          );
+        })}
+        {selectedValues.length > 0 ? (
+          <button type="button" className="faculty-history-filter-clear" onClick={onClear}>
+            Clear
+          </button>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 export default function FacultyDetailPage() {
   const router = useRouter();
   const { userid } = router.query;
@@ -84,6 +155,8 @@ export default function FacultyDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [activeTab, setActiveTab] = useState(DETAIL_TABS.RESEARCH_AREA);
+  const [teachingHistoryYearFilters, setTeachingHistoryYearFilters] = useState([]);
+  const [teachingHistoryTermFilters, setTeachingHistoryTermFilters] = useState([]);
 
   useEffect(() => {
     let isActive = true;
@@ -123,6 +196,11 @@ export default function FacultyDetailPage() {
       isActive = false;
     };
   }, []);
+
+  useEffect(() => {
+    setTeachingHistoryYearFilters([]);
+    setTeachingHistoryTermFilters([]);
+  }, [userid]);
 
   const faculty = useMemo(() => findFacultyByUserid(records, userid), [records, userid]);
 
@@ -167,6 +245,159 @@ export default function FacultyDetailPage() {
       );
     }
 
+    if (activeTab === DETAIL_TABS.TEACHING_HISTORY) {
+      const teachingHistoryRows = faculty.teachingHistory?.rows ?? [];
+      const availableTeachingHistoryYears = Array.from(
+        new Set(
+          teachingHistoryRows
+            .map((course) => course.year)
+            .filter((year) => year !== null && year !== undefined && year !== "")
+            .map(String)
+        )
+      ).sort((firstYear, secondYear) => Number(secondYear) - Number(firstYear));
+      const teachingHistoryTermSet = new Set(
+        teachingHistoryRows.map((course) => course.term).filter(Boolean).map(String)
+      );
+      const availableTeachingHistoryTerms = [
+        ...TEACHING_TERM_ORDER.filter((term) => teachingHistoryTermSet.has(term)),
+        ...Array.from(teachingHistoryTermSet)
+          .filter((term) => !TEACHING_TERM_ORDER.includes(term))
+          .sort(),
+      ];
+      const selectedYearSet = new Set(teachingHistoryYearFilters);
+      const selectedTermSet = new Set(teachingHistoryTermFilters);
+      const filteredTeachingHistoryRows = teachingHistoryRows.filter((course) => {
+        const matchesYear =
+          teachingHistoryYearFilters.length === 0 || selectedYearSet.has(String(course.year));
+        const matchesTerm =
+          teachingHistoryTermFilters.length === 0 || selectedTermSet.has(String(course.term));
+
+        return matchesYear && matchesTerm;
+      });
+      const yearCount = new Set(
+        filteredTeachingHistoryRows
+          .map((course) => course.year)
+          .filter((year) => year !== null && year !== undefined && year !== "")
+          .map(String)
+      ).size;
+      const courseCount = filteredTeachingHistoryRows.length;
+      const graduateCount = filteredTeachingHistoryRows.filter(
+        (course) => String(course.courseCareer).toLowerCase() === "graduate"
+      ).length;
+      const undergraduateCount = filteredTeachingHistoryRows.filter(
+        (course) => String(course.courseCareer).toLowerCase() === "undergraduate"
+      ).length;
+      const teachingHistoryRefreshKey = [
+        activeTab,
+        faculty.userid,
+        filteredTeachingHistoryRows.length,
+        teachingHistoryYearFilters.join("-"),
+        teachingHistoryTermFilters.join("-"),
+      ].join("-");
+
+      return (
+        <div className="faculty-secondary-section">
+          <div className="faculty-preference-heading">
+            <h2>Teaching History</h2>
+            <p>Courses taught by term and academic year.</p>
+          </div>
+
+          {teachingHistoryRows.length > 0 ? (
+            <>
+              <div className="faculty-history-filters" aria-label="Teaching history filters">
+                <TeachingHistoryFilterDropdown
+                  label="Year"
+                  values={availableTeachingHistoryYears}
+                  selectedValues={teachingHistoryYearFilters}
+                  onToggle={(year) =>
+                    setTeachingHistoryYearFilters((currentValues) =>
+                      toggleFilterValue(currentValues, year)
+                    )
+                  }
+                  onClear={() => setTeachingHistoryYearFilters([])}
+                />
+                <TeachingHistoryFilterDropdown
+                  label="Term"
+                  values={availableTeachingHistoryTerms}
+                  selectedValues={teachingHistoryTermFilters}
+                  onToggle={(term) =>
+                    setTeachingHistoryTermFilters((currentValues) =>
+                      toggleFilterValue(currentValues, term)
+                    )
+                  }
+                  onClear={() => setTeachingHistoryTermFilters([])}
+                  formatValue={formatTerm}
+                />
+              </div>
+
+              <div className="faculty-history-summary" aria-label="Teaching history summary">
+                <div className="faculty-history-summary-item">
+                  <span>Years</span>
+                  <strong>{yearCount}</strong>
+                </div>
+                <div className="faculty-history-summary-item">
+                  <span>Classes</span>
+                  <strong>{courseCount}</strong>
+                </div>
+                <div className="faculty-history-summary-item">
+                  <span>Graduate</span>
+                  <strong>{graduateCount}</strong>
+                </div>
+                <div className="faculty-history-summary-item">
+                  <span>Undergraduate</span>
+                  <strong>{undergraduateCount}</strong>
+                </div>
+              </div>
+
+              {filteredTeachingHistoryRows.length > 0 ? (
+                <DataTableView
+                  key={teachingHistoryRefreshKey}
+                  config={createFacultyDetailTableConfig({
+                    filename: `${faculty.userid}-teaching-history`,
+                    title: `${faculty.name} Teaching History`,
+                    order: [[0, "desc"], [1, "asc"]],
+                    showColumnVisibility: false,
+                  })}
+                  refreshKey={teachingHistoryRefreshKey}
+                >
+                  <thead>
+                    <tr>
+                      <th>Year</th>
+                      <th>Term</th>
+                      <th>Class Number</th>
+                      <th>Course Name</th>
+                      <th>Course Type</th>
+                      <th>Course Career</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTeachingHistoryRows.map((course) => (
+                      <tr key={course.teachingHistoryId}>
+                        <td>{displayValue(course.year)}</td>
+                        <td>{formatTerm(course.term)}</td>
+                        <td>{displayValue(course.classNumber)}</td>
+                        <td>{displayValue(course.courseName)}</td>
+                        <td>{displayValue(course.courseType)}</td>
+                        <td>{displayValue(course.courseCareer)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DataTableView>
+              ) : (
+                <div className="faculty-table-status" role="status">
+                  No teaching history matches the selected filters.
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="faculty-table-status" role="status">
+              No teaching history data is available for this faculty record.
+            </div>
+          )}
+        </div>
+      );
+    }
+
     if (activeTab === DETAIL_TABS.COURSE_PREFERENCE) {
       return (
         <div className="faculty-secondary-section">
@@ -175,8 +406,15 @@ export default function FacultyDetailPage() {
             <p>Current teaching preferences recorded for this faculty member.</p>
           </div>
           {faculty.coursePreferences.length > 0 ? (
-            <div className="faculty-preference-table-wrapper">
-              <table className="faculty-preference-table">
+            <DataTableView
+              key={`${activeTab}-${faculty.userid}-course-preference`}
+              config={createFacultyDetailTableConfig({
+                filename: `${faculty.userid}-course-preference`,
+                title: `${faculty.name} Course Preference`,
+                showColumnVisibility: false,
+              })}
+              refreshKey={`${activeTab}-${faculty.userid}-${faculty.coursePreferences.length}`}
+            >
                 <thead>
                   <tr>
                     <th>Course Code</th>
@@ -193,8 +431,7 @@ export default function FacultyDetailPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </DataTableView>
           ) : (
             <div className="faculty-table-status" role="status">
               No current course preference data is available for this faculty record.
@@ -211,8 +448,14 @@ export default function FacultyDetailPage() {
             <h2>Leave</h2>
           </div>
           {faculty.leaves.length > 0 ? (
-            <div className="faculty-preference-table-wrapper">
-              <table className="faculty-preference-table">
+            <DataTableView
+              key={`${activeTab}-${faculty.userid}-leave`}
+              config={createFacultyDetailTableConfig({
+                filename: `${faculty.userid}-leave`,
+                title: `${faculty.name} Leave`,
+              })}
+              refreshKey={`${activeTab}-${faculty.userid}-${faculty.leaves.length}`}
+            >
                 <thead>
                   <tr>
                     <th>Leave Type</th>
@@ -235,8 +478,7 @@ export default function FacultyDetailPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </DataTableView>
           ) : (
             <div className="faculty-table-status" role="status">
               No leave data is available for this faculty record.
@@ -253,8 +495,15 @@ export default function FacultyDetailPage() {
             <h2>Committee</h2>
           </div>
           {faculty.committees.length > 0 ? (
-            <div className="faculty-preference-table-wrapper">
-              <table className="faculty-preference-table">
+            <DataTableView
+              key={`${activeTab}-${faculty.userid}-committee`}
+              config={createFacultyDetailTableConfig({
+                filename: `${faculty.userid}-committee`,
+                title: `${faculty.name} Committee`,
+                showColumnVisibility: false,
+              })}
+              refreshKey={`${activeTab}-${faculty.userid}-${faculty.committees.length}`}
+            >
                 <thead>
                   <tr>
                     <th>Committee Name</th>
@@ -269,8 +518,7 @@ export default function FacultyDetailPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </DataTableView>
           ) : (
             <div className="faculty-table-status" role="status">
               No committee data is available for this faculty record.
@@ -288,8 +536,14 @@ export default function FacultyDetailPage() {
             <p>Awards and honors associated with this faculty member.</p>
           </div>
           {faculty.awards.length > 0 ? (
-            <div className="faculty-preference-table-wrapper">
-              <table className="faculty-preference-table">
+            <DataTableView
+              key={`${activeTab}-${faculty.userid}-awards`}
+              config={createFacultyDetailTableConfig({
+                filename: `${faculty.userid}-awards`,
+                title: `${faculty.name} Awards`,
+              })}
+              refreshKey={`${activeTab}-${faculty.userid}-${faculty.awards.length}`}
+            >
                 <thead>
                   <tr>
                     <th>Award ID</th>
@@ -308,8 +562,7 @@ export default function FacultyDetailPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+            </DataTableView>
           ) : (
             <div className="faculty-table-status" role="status">
               No awards data is available for this faculty record.
@@ -326,8 +579,15 @@ export default function FacultyDetailPage() {
           <p>Students linked to this faculty member.</p>
         </div>
         {faculty.students.length > 0 ? (
-          <div className="faculty-preference-table-wrapper">
-            <table className="faculty-preference-table">
+          <DataTableView
+            key={`${activeTab}-${faculty.userid}-students`}
+            config={createFacultyDetailTableConfig({
+              filename: `${faculty.userid}-students`,
+              title: `${faculty.name} Students`,
+              showColumnVisibility: false,
+            })}
+            refreshKey={`${activeTab}-${faculty.userid}-${faculty.students.length}`}
+          >
               <thead>
                 <tr>
                   <th>Student Person Number</th>
@@ -344,8 +604,7 @@ export default function FacultyDetailPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+          </DataTableView>
         ) : (
           <div className="faculty-table-status" role="status">
             No student data is available for this faculty record.
@@ -537,6 +796,15 @@ export default function FacultyDetailPage() {
                             aria-selected={activeTab === DETAIL_TABS.RESEARCH_AREA}
                           >
                             Research Area
+                          </button>
+                          <button
+                            type="button"
+                            className={`faculty-secondary-tab ${activeTab === DETAIL_TABS.TEACHING_HISTORY ? "is-active" : ""}`}
+                            onClick={() => setActiveTab(DETAIL_TABS.TEACHING_HISTORY)}
+                            role="tab"
+                            aria-selected={activeTab === DETAIL_TABS.TEACHING_HISTORY}
+                          >
+                            Teaching History
                           </button>
                           <button
                             type="button"

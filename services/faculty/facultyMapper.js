@@ -150,6 +150,60 @@ function mapStudentItem(student, index) {
   };
 }
 
+function pickTeachingHistoryPayload(record) {
+  return (
+    record?.teachingHistory ??
+    record?.teaching_history ??
+    record?.teachingHistoryResponse ??
+    record?.teaching_history_response
+  );
+}
+
+function mapTeachingHistoryItem(course, year, term, index) {
+  return {
+    teachingHistoryId: normalizeField(
+      course?.teachingHistoryId ??
+        course?.teaching_history_id ??
+        course?.id ??
+        `${year}-${term}-${course?.classNumber ?? course?.class_number ?? index + 1}`
+    ),
+    year: normalizeField(String(year ?? "")),
+    term,
+    classNumber: normalizeField(course?.classNumber ?? course?.class_number),
+    courseName: normalizeField(course?.courseName ?? course?.course_name),
+    courseType: normalizeField(course?.courseType ?? course?.course_type),
+    courseCareer: normalizeField(course?.courseCareer ?? course?.course_career),
+  };
+}
+
+function mapTeachingHistory(record) {
+  const historyPayload = pickTeachingHistoryPayload(record);
+  const data = historyPayload?.data ?? historyPayload ?? {};
+  const years = normalizeArray(data?.years);
+  const termKeys = ["spring", "summer", "fall"];
+  const rows = [];
+
+  years.forEach((yearEntry) => {
+    termKeys.forEach((term) => {
+      normalizeArray(yearEntry?.[term]).forEach((course, index) => {
+        rows.push(mapTeachingHistoryItem(course, yearEntry?.year, term, index));
+      });
+    });
+  });
+
+  return {
+    faculty: normalizeField(data?.faculty),
+    facultySourceKey: normalizeField(data?.facultySourceKey ?? data?.faculty_source_key),
+    years: years.map((yearEntry) => ({
+      year: normalizeField(String(yearEntry?.year ?? "")),
+      springCount: normalizeArray(yearEntry?.spring).length,
+      summerCount: normalizeArray(yearEntry?.summer).length,
+      fallCount: normalizeArray(yearEntry?.fall).length,
+    })),
+    rows,
+  };
+}
+
 export function mapFacultyRecord(record, index) {
   const contactOfficeAddress = record?.contact?.officeAddress;
   const contactEmail = normalizeField(record?.contact?.email);
@@ -211,6 +265,7 @@ export function mapFacultyRecord(record, index) {
     teachingReductions: normalizeArray(
       record?.teachingReductions ?? record?.teaching_reductions
     ).map(mapTeachingReductionItem),
+    teachingHistory: mapTeachingHistory(record),
   };
 
   if (!mappedRecord.name || !mappedRecord.userid || !mappedRecord.officeAddress) {

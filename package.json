@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "datatables.net-buttons-dt": "^3.2.6",
     "datatables.net-dt": "^2.3.7",
     "next": "14.2.3",
     "react": "^18",

@@ -1,49 +1,8 @@
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import DataTableView from "./DataTableView";
 import { createFacultyTableConfig } from "../services/faculty/facultyTableConfig";
 
 export default function FacultyTable({ records, isLoading, errorMessage }) {
-  const tableRef = useRef(null);
-  const instanceRef = useRef(null);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function initialiseTable() {
-      if (!tableRef.current || isLoading || errorMessage) {
-        return;
-      }
-
-      const DataTableModule = await import("datatables.net-dt");
-      const DataTable = DataTableModule.default;
-
-      if (!isActive || !tableRef.current) {
-        return;
-      }
-
-      if (instanceRef.current) {
-        instanceRef.current.destroy();
-        instanceRef.current = null;
-      }
-
-      instanceRef.current = new DataTable(
-        tableRef.current,
-        createFacultyTableConfig()
-      );
-    }
-
-    initialiseTable();
-
-    return () => {
-      isActive = false;
-
-      if (instanceRef.current) {
-        instanceRef.current.destroy();
-        instanceRef.current = null;
-      }
-    };
-  }, [errorMessage, isLoading, records]);
-
   if (isLoading) {
     return (
       <section className="faculty-table-panel">
@@ -113,8 +72,12 @@ export default function FacultyTable({ records, isLoading, errorMessage }) {
       </div>
 
       <div className="faculty-table-shell">
-        <div className="faculty-table-wrapper">
-          <table ref={tableRef} className="display faculty-table" style={{ width: "100%" }}>
+        <DataTableView
+          className="display faculty-table"
+          config={createFacultyTableConfig()}
+          refreshKey={`faculty-roster-${records.length}`}
+          wrapperClassName="faculty-table-wrapper"
+        >
             <thead>
               <tr>
                 <th>Name</th>
@@ -139,8 +102,7 @@ export default function FacultyTable({ records, isLoading, errorMessage }) {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+        </DataTableView>
       </div>
     </section>
   );

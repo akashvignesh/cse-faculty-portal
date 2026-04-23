@@ -89,6 +89,62 @@ export const facultyMockData = [
         priority: 2,
       },
     ],
+    teachingHistory: {
+      success: true,
+      message: "Teaching history fetched successfully",
+      data: {
+        faculty: "John Smith",
+        facultySourceKey: "10000001",
+        years: [
+          {
+            year: 2025,
+            spring: [
+              {
+                classNumber: "16860",
+                courseName: "799TUT-Supervised Research",
+                courseType: "Tutorial",
+                courseCareer: "Graduate",
+              },
+            ],
+            summer: [],
+            fall: [
+              {
+                classNumber: "74800",
+                courseName: "700TUT-Independent Study",
+                courseType: "Tutorial",
+                courseCareer: "Graduate",
+              },
+            ],
+          },
+          {
+            year: 2024,
+            spring: [
+              {
+                classNumber: "12311",
+                courseName: "111LLB-Introduction to Quantitative Analysis and Reasoning with Computing",
+                courseType: "Lecture",
+                courseCareer: "Undergraduate",
+              },
+              {
+                classNumber: "15202",
+                courseName: "700TUT-Independent Study",
+                courseType: "Tutorial",
+                courseCareer: "Graduate",
+              },
+            ],
+            summer: [],
+            fall: [
+              {
+                classNumber: "13840",
+                courseName: "501LEC-Introduction to Graduate Study in Computer Science I",
+                courseType: "Lecture",
+                courseCareer: "Graduate",
+              },
+            ],
+          },
+        ],
+      },
+    },
   },
   {
     name: "Alice Brown",
@@ -384,6 +440,160 @@ export const facultyMockData = [
         coursePref: "preference2",
       },
     ],
+    teachingHistory: {
+      success: true,
+      message: "Teaching history fetched successfully",
+      data: {
+        faculty: "Roshan Ayyalasomayajula",
+        facultySourceKey: "10000001",
+        years: [
+          {
+            year: 2026,
+            spring: [
+              {
+                classNumber: "23101",
+                courseName: "474LEC-Introduction to Machine Learning",
+                courseType: "Lecture",
+                courseCareer: "Undergraduate",
+              },
+              {
+                classNumber: "23102",
+                courseName: "574LEC-Introduction to Machine Learning",
+                courseType: "Lecture",
+                courseCareer: "Graduate",
+              },
+            ],
+            summer: [],
+            fall: [
+              {
+                classNumber: "24871",
+                courseName: "667LEC-Advanced Topics in Computational Linguistics",
+                courseType: "Lecture",
+                courseCareer: "Graduate",
+              },
+            ],
+          },
+          {
+            year: 2025,
+            spring: [
+              {
+                classNumber: "20518",
+                courseName: "475LLR-Modern Computer Systems",
+                courseType: "Lecture",
+                courseCareer: "Undergraduate",
+              },
+            ],
+            summer: [
+              {
+                classNumber: "11830",
+                courseName: "700TUT-Independent Study",
+                courseType: "Tutorial",
+                courseCareer: "Graduate",
+              },
+            ],
+            fall: [
+              {
+                classNumber: "24312",
+                courseName: "574LEC-Introduction to Machine Learning",
+                courseType: "Lecture",
+                courseCareer: "Graduate",
+              },
+              {
+                classNumber: "24313",
+                courseName: "499TUT-Independent Study",
+                courseType: "Tutorial",
+                courseCareer: "Undergraduate",
+              },
+            ],
+          },
+          {
+            year: 2024,
+            spring: [
+              {
+                classNumber: "19840",
+                courseName: "667LEC-Advanced Topics in Computational Linguistics",
+                courseType: "Lecture",
+                courseCareer: "Graduate",
+              },
+              {
+                classNumber: "19841",
+                courseName: "700TUT-Independent Study",
+                courseType: "Tutorial",
+                courseCareer: "Graduate",
+              },
+            ],
+            summer: [],
+            fall: [
+              {
+                classNumber: "22104",
+                courseName: "474LEC-Introduction to Machine Learning",
+                courseType: "Lecture",
+                courseCareer: "Undergraduate",
+              },
+            ],
+          },
+          {
+            year: 2023,
+            spring: [
+              {
+                classNumber: "18370",
+                courseName: "695LAB-Advanced High Voltage and Power Electronics",
+                courseType: "Lab",
+                courseCareer: "Graduate",
+              },
+            ],
+            summer: [
+              {
+                classNumber: "11220",
+                courseName: "799TUT-Supervised Research",
+                courseType: "Tutorial",
+                courseCareer: "Graduate",
+              },
+            ],
+            fall: [
+              {
+                classNumber: "21282",
+                courseName: "321LR-Real-Time and Embedded Operating Systems",
+                courseType: "Lecture",
+                courseCareer: "Undergraduate",
+              },
+              {
+                classNumber: "21283",
+                courseName: "700TUT-Independent Study",
+                courseType: "Tutorial",
+                courseCareer: "Graduate",
+              },
+            ],
+          },
+          {
+            year: 2022,
+            spring: [
+              {
+                classNumber: "17624",
+                courseName: "490LAB-Computer Architecture",
+                courseType: "Lab",
+                courseCareer: "Undergraduate",
+              },
+            ],
+            summer: [],
+            fall: [
+              {
+                classNumber: "20449",
+                courseName: "202LEC-Circuit Analysis 1",
+                courseType: "Lecture",
+                courseCareer: "Undergraduate",
+              },
+              {
+                classNumber: "20450",
+                courseName: "598TUT-Internship",
+                courseType: "Tutorial",
+                courseCareer: "Graduate",
+              },
+            ],
+          },
+        ],
+      },
+    },
     teachingReductions: [
       {
         teachingReductionId: "TR-1001",
