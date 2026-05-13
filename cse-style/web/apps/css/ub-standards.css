@@ -1,0 +1,187 @@
+
+/*
+
+Refer to:
+
+https://www.buffalo.edu/brand/creative/typography/font-substitutes.html
+https://www.buffalo.edu/brand/creative/color/color-palette.html
+ 
+*/
+
+body {
+  font-family: arial, sans-serif;
+  // font-size: 12px;
+}
+
+h1 {
+  color: #666;
+  font-family: arial, sans-serif;
+  font-size: 3em;
+  font-weight: bold;
+  line-height: 1em;
+}
+
+h2 {
+  color: #666;
+  font-family: arial, sans-serif;
+  font-size: 2em;
+  line-height: 1em;
+}
+
+h3 {
+  color: #666;
+  font-family: arial, sans-serif;
+  font-size: 1.5em;
+  font-weight: 500;
+  line-height: 1.1;
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+
+h4 {
+  font-family: arial, sans-serif;
+}
+
+h5 {
+  font-family: arial, sans-serif;
+}
+
+h6 {
+  font-family: arial, sans-serif;
+}
+
+/*
+  
+classes
+
+*/
+
+.card-title {
+  color: #005bbb;
+  font-family: arial, sans-serif;
+  /* font-family:More Pro,Georgia,serif; */
+}
+
+.nav-link:hover { /* so Nicholas stops complaining */
+  cursor:pointer;
+}
+
+.prog-reqs-breadth tr {
+  background-color:lightyellow;
+  text-align:center;
+}
+
+.prog-reqs-depth {
+  background:#e0ffff;
+  text-align:center;
+}
+
+.table-funding select {
+  font-family: arial, sans serif;
+  font-size: 12px;
+}
+
+.table-funding th {
+  background-color: green; /* green */
+  color: #ffffff; /* hayes-hall-white */
+}
+
+ .table-ub-standard select {
+  font-family: arial, sans serif;
+  /* font-size: 12px; */
+}
+
+.table-ub-standard th {
+  background-color: #005bbb !important; /* ub-blue */
+  color: #ffffff; /* hayes-hall-white */
+}
+
+.tooltip-inner {
+  background-color: #008555; /* Citizens Access bank website tooltip green */
+  /* background-color: #ffc72c; */
+  color: #ffffff; /* hayes-hall-white */
+  /* color: #000000; /* dennis-black-black */ */
+}
+
+
+/*
+ 
+color classes
+ 
+*/
+
+.baird-point {
+  color: #e4e4e4;
+}
+
+.bronze-buffalo {
+  color: #ad841f;
+}
+
+.capen-brick {
+  color: #990000;
+}
+
+.harriman-blue {
+  color: #002f56;
+}
+
+.hayes-hall-white {
+  color: #ffffff;
+}
+
+.letchworth-autumn {
+  color: #e56a54;
+}
+
+.solar-strand {
+  color: #ffc72c;
+}
+
+.townsend-gray {
+  color: #666666;
+}
+
+.ub-blue {
+  color: #005bbb;
+}
+
+.victor-e-blue {
+  color: #2f9fd0;
+}
+
+/*
+
+elements
+
+*/
+
+dt {
+  color: #005bbb;
+}
+
+label {
+  color: #005bbb; /* ub-blue */
+  /* font-family: "Sofia Pro", sans-serif; /* See: http://www.buffalo.edu/toolbox/brand/visual-identity/official-fonts.html */
+  font-size: 1.2em;
+}
+
+form-select {
+  font-family: arial, sans serif;
+  font-size: 12px;
+}
+
+select {
+  font-family: arial, sans serif;
+  font-size: 12px;
+}
+
+th {
+  background-color: #005bbb; /* ub-blue */
+  color: #000000; /* dennis-black-black */
+  /* color: #ffffff; /* hayes-hall-white */ */
+}
+
+div.DTE_Field_Type_textarea textarea {
+  height: 200px !important; /* Adjust as needed */
+}

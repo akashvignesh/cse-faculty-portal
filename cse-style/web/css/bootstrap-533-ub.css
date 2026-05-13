@@ -1,0 +1,15 @@
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  padding: .75rem 1rem;
+  margin-bottom: 1rem;
+  list-style: none;
+  background-color: #e9ecef;
+  border-radius: .25rem;
+}
+
+.btn-primary {
+  color: #fff;
+  background-color: #005bbb;
+  border-color: #e4e4e4;
+}
