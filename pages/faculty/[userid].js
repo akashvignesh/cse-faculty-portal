@@ -683,6 +683,22 @@ export default function FacultyDetailPage() {
                         </span>
                         Edit Course Preference
                       </Link>
+
+                      <Link
+                        className="faculty-detail-dashboard-item"
+                        href={userid ? `/faculty/${userid}/committee-preference` : "/"}
+                      >
+                        <span className="faculty-detail-dashboard-icon" aria-hidden="true">
+                          <svg
+                            viewBox="0 0 16 16"
+                            className="faculty-detail-dashboard-icon-svg"
+                            focusable="false"
+                          >
+                            <path d="M2 2h5v5H2zm7 0h5v5H9zM2 9h5v5H2zm7 0h5v5H9z" />
+                          </svg>
+                        </span>
+                        Edit Committee Preference
+                      </Link>
                     </nav>
                   </aside>
 

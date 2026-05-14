@@ -1,6 +1,7 @@
 .portal-page-shell {
   padding: 0 28px 52px;
   background: #ffffff;
+  overflow-x: hidden;
 }
 
 .portal-page {
@@ -718,6 +719,7 @@ div.dt-button-background {
 .faculty-profile-layout {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .faculty-secondary-card {
@@ -725,6 +727,7 @@ div.dt-button-background {
   border-radius: 4px;
   background: #ffffff;
   overflow: hidden;
+  min-width: 0;
 }
 
 .portal-footer {
@@ -901,6 +904,7 @@ div.dt-button-background {
 .faculty-secondary-section {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .faculty-chip-list {
@@ -1280,6 +1284,282 @@ div.dt-button-background {
 .faculty-preference-table tbody tr:nth-child(even) td {
   background: #f7f9fc;
 }
+
+/* ── Committee preference matrix ── */
+
+.faculty-committee-heading {
+  padding: 16px 16px 8px;
+  border-bottom: 1px solid #d5dbe3;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f3f5f7 100%);
+}
+
+.faculty-committee-heading h2 {
+  margin: 0 0 4px;
+  color: var(--ub-blue-deep);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+}
+
+.faculty-committee-heading p {
+  margin: 0;
+  color: var(--text-body);
+  font-size: 0.88rem;
+}
+
+/* ── Value legend ── */
+.committee-matrix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 7px 0 2px;
+  font-size: 0.82rem;
+  color: var(--text-body);
+}
+
+.committee-matrix-legend-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  font-family: var(--font-body-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.committee-matrix-legend-badge-p { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.committee-matrix-legend-badge-c { background: #005bbb; color: #ffffff; border: 1px solid #005bbb; }
+.committee-matrix-legend-badge-v { background: #fff3e0; color: #bf360c; border: 1px solid #ffcc80; }
+.committee-matrix-legend-badge-x { background: #4a148c; color: #ffffff; border: 1px solid #4a148c; }
+
+.committee-matrix-legend-item {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-family: var(--font-body-strong);
+}
+
+/* ── Scroll wrapper — clips horizontally within the content card ── */
+.committee-matrix-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 68vh;
+  border: 1px solid #d5dbe3;
+  border-radius: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.committee-matrix-table {
+  border-collapse: collapse;
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+  background: #ffffff;
+}
+
+/* ── Sticky column headers (on th, not tr) ── */
+.committee-matrix-th-name {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 7;
+  padding: 10px 14px;
+  background: #004899;
+  color: #ffffff;
+  font-family: var(--font-body-strong);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  border-right: 2px solid rgba(255, 255, 255, 0.35);
+  vertical-align: bottom;
+  min-width: 180px;
+  width: 180px;
+}
+
+/* ── Rotated committee column headers ── */
+.committee-matrix-th-rotated {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 6px 2px;
+  background: #005bbb;
+  color: #ffffff;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
+  vertical-align: bottom;
+  text-align: center;
+}
+
+.committee-matrix-th-summary {
+  background: #1565c0;
+}
+
+.committee-matrix-th-label {
+  display: block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  height: 140px;
+  font-family: var(--font-body-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Sticky Faculty Name data cells ── */
+.committee-matrix-td-name {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  padding: 6px 14px;
+  border-right: 2px solid #c0cfe8;
+  border-bottom: 1px solid #d5dbe3;
+  background: #ffffff;
+  color: var(--ub-blue);
+  font-family: var(--font-body-strong);
+  font-size: 0.86rem;
+  white-space: nowrap;
+  vertical-align: middle;
+  min-width: 180px;
+  width: 180px;
+}
+
+.committee-matrix-td-name-even {
+  background: #f7f9fc;
+}
+
+/* ── Committee dropdown cells ── */
+.committee-matrix-td-cell {
+  padding: 3px 2px;
+  border-right: 1px solid #d5dbe3;
+  border-bottom: 1px solid #d5dbe3;
+  text-align: center;
+  vertical-align: middle;
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
+}
+
+/* ── Summary value cells ── */
+.committee-matrix-td-summary {
+  padding: 4px 4px;
+  border-right: 1px solid #c0cfe8;
+  border-bottom: 1px solid #d5dbe3;
+  text-align: center;
+  vertical-align: middle;
+  background: #f5f8fd;
+  width: 52px;
+  min-width: 52px;
+}
+
+.committee-matrix-td-computed {
+  color: var(--ub-blue);
+  font-family: var(--font-body-strong);
+  font-size: 0.84rem;
+}
+
+.committee-matrix-td-comments {
+  width: 120px;
+  min-width: 120px;
+}
+
+/* ── Row alternating colors ── */
+.committee-matrix-table tbody tr:nth-child(even) .committee-matrix-td-cell,
+.committee-matrix-table tbody tr:nth-child(even) .committee-matrix-td-summary {
+  background: #f7f9fc;
+}
+
+.committee-matrix-table tbody tr:nth-child(even) .committee-matrix-td-summary {
+  background: #eef3fb;
+}
+
+/* ── Row hover ── */
+.committee-matrix-table tbody tr:hover .committee-matrix-td-cell,
+.committee-matrix-table tbody tr:hover .committee-matrix-td-summary {
+  background: #e8f0fc !important;
+}
+
+.committee-matrix-table tbody tr:hover .committee-matrix-td-name,
+.committee-matrix-table tbody tr:hover .committee-matrix-td-name-even {
+  background: #ddeafc !important;
+}
+
+/* ── Dropdown select in each cell ── */
+.committee-matrix-select {
+  width: 40px;
+  height: 26px;
+  border: 1px solid #ccd2da;
+  border-radius: 3px;
+  font-family: var(--font-body-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  text-align-last: center;
+  padding: 0;
+  cursor: pointer;
+  background: #ffffff;
+  color: #666;
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.committee-matrix-select:focus {
+  outline: 0;
+  border-color: var(--ub-blue);
+  box-shadow: 0 0 0 2px rgba(0, 91, 187, 0.15);
+}
+
+/* Value-based coloring */
+.committee-matrix-select-P { background: #e8f5e9 !important; color: #2e7d32 !important; border-color: #a5d6a7 !important; }
+.committee-matrix-select-C { background: #005bbb !important; color: #ffffff !important; border-color: #005bbb !important; }
+.committee-matrix-select-V { background: #fff3e0 !important; color: #bf360c !important; border-color: #ffcc80 !important; }
+.committee-matrix-select-X { background: #4a148c !important; color: #ffffff !important; border-color: #4a148c !important; }
+
+/* ── Summary input fields ── */
+.committee-matrix-input-number {
+  width: 40px;
+  text-align: center;
+  border: 1px solid #ccd2da;
+  border-radius: 3px;
+  padding: 3px 2px;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  background: #ffffff;
+  color: var(--text-strong);
+}
+
+.committee-matrix-input-text {
+  width: 110px;
+  border: 1px solid #ccd2da;
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  background: #ffffff;
+  color: var(--text-strong);
+}
+
+.committee-matrix-input-number:focus,
+.committee-matrix-input-text:focus {
+  outline: 0;
+  border-color: var(--ub-blue);
+  box-shadow: 0 0 0 2px rgba(0, 91, 187, 0.14);
+}
+
+.committee-matrix-input-number::-webkit-inner-spin-button,
+.committee-matrix-input-number::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.committee-matrix-input-number { -moz-appearance: textfield; }
 
 @media (max-width: 880px) {
   .portal-brand-lockup {
