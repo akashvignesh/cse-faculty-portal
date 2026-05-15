@@ -1,0 +1,151 @@
+import {
+  SEMESTER_STATUS_OPTIONS,
+  TEACHING_COMMENT_OPTIONS,
+  NOT_TEACHING_COMMENT_OPTIONS,
+  genId,
+} from "./coursePreferenceUtils";
+
+/**
+ * Semester planning table.
+ * Rows are pre-populated to match the faculty's semester load (maxSlots).
+ * Faculty can remove rows and add them back, but cannot exceed maxSlots.
+ */
+export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd, onChange }) {
+  function addRow() {
+    if (!canAdd) return;
+    onChange([
+      ...rows,
+      { id: genId(semester.toLowerCase()), status: "Teaching", comment: "" },
+    ]);
+  }
+
+  function removeRow(id) {
+    onChange(rows.filter((r) => r.id !== id));
+  }
+
+  function updateRow(id, field, value) {
+    onChange(
+      rows.map((r) => {
+        if (r.id !== id) return r;
+        const updated = { ...r, [field]: value };
+        // Reset comment when status changes
+        if (field === "status") updated.comment = "";
+        return updated;
+      })
+    );
+  }
+
+  function commentOptions(status) {
+    return status === "Teaching" ? TEACHING_COMMENT_OPTIONS : NOT_TEACHING_COMMENT_OPTIONS;
+  }
+
+  return (
+    <div className="cp-semester-block">
+      <div className="cp-semester-block-header">
+        <h4 className="cp-semester-block-title">
+          <span className={`cp-semester-dot cp-semester-dot-${semester.toLowerCase()}`} aria-hidden="true" />
+          {semester}
+          {rows.length > 0 && (
+            <span className="cp-semester-slot-count">
+              {rows.length} slot{rows.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </h4>
+        {canAdd && (
+          <button
+            type="button"
+            className="cp-add-slot-btn"
+            onClick={addRow}
+            aria-label={`Add ${semester} teaching slot`}
+          >
+            + Add Slot
+          </button>
+        )}
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="cp-semester-empty">
+          {isLocked
+            ? "No teaching slots recorded."
+            : "No slots added. Click \"+ Add Slot\" to begin."}
+        </p>
+      ) : (
+        <div className="cp-planning-table-wrapper">
+          <table className="cp-planning-table" aria-label={`${semester} semester planning`}>
+            <thead>
+              <tr>
+                <th className="cp-col-slot">Course</th>
+                <th className="cp-col-status">Status</th>
+                <th className="cp-col-comment">Comments / Reason</th>
+                {!isLocked && <th className="cp-col-action" aria-label="Actions" />}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const opts = commentOptions(row.status);
+                return (
+                  <tr key={row.id}>
+                    <td className="cp-col-slot">
+                      <span className="cp-slot-number">Course {index + 1}</span>
+                    </td>
+
+                    <td className="cp-col-status">
+                      {isLocked ? (
+                        <span className={`cp-status-badge cp-status-${row.status === "Teaching" ? "teaching" : "not-teaching"}`}>
+                          {row.status}
+                        </span>
+                      ) : (
+                        <select
+                          className="cp-select cp-status-select"
+                          value={row.status}
+                          onChange={(e) => updateRow(row.id, "status", e.target.value)}
+                          aria-label={`Course ${index + 1} status`}
+                        >
+                          {SEMESTER_STATUS_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+
+                    <td className="cp-col-comment">
+                      {isLocked ? (
+                        <span className="cp-comment-text">{row.comment || "—"}</span>
+                      ) : (
+                        <select
+                          className="cp-select cp-comment-select"
+                          value={row.comment}
+                          onChange={(e) => updateRow(row.id, "comment", e.target.value)}
+                          aria-label={`Course ${index + 1} comment`}
+                        >
+                          <option value="">— Select —</option>
+                          {opts.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+
+                    {!isLocked && (
+                      <td className="cp-col-action">
+                        <button
+                          type="button"
+                          className="cp-remove-btn"
+                          onClick={() => removeRow(row.id)}
+                          aria-label={`Remove Course ${index + 1}`}
+                          title="Remove slot"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

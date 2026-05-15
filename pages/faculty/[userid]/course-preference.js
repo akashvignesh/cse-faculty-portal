@@ -4,218 +4,159 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
 import FacultyPortalHeader from "../../../components/FacultyPortalHeader";
 import PortalFooter from "../../../components/PortalFooter";
-import DataTableView from "../../../components/DataTableView";
+import AcademicYearSelector from "../../../components/course-preference/AcademicYearSelector";
+import FacultyInfoCard from "../../../components/course-preference/FacultyInfoCard";
+import SemesterPlanningTable from "../../../components/course-preference/SemesterPlanningTable";
+import CoursePreferenceSection from "../../../components/course-preference/CoursePreferenceSection";
+import {
+  deepCopyYearData,
+  createEmptyYearData,
+  getNextYearString,
+  getComputedAnnualLoad,
+  validateSemesterPlan,
+} from "../../../components/course-preference/coursePreferenceUtils";
+import {
+  INITIAL_ACADEMIC_YEARS,
+  getInitialYearDataForFaculty,
+} from "../../../data/coursePreferenceMockData";
 import { APP_TITLE, getAppConfig } from "../../../config/appConfig";
-import { courseCatalogMockData } from "../../../data/courseCatalogMockData";
 import {
   findFacultyByUserid,
   loadFacultyRecords,
 } from "../../../services/faculty/facultyService";
-import { createFacultyDetailTableConfig } from "../../../services/faculty/facultyTableConfig";
-
-const TAB_KEYS = {
-  ALL: "all",
-  PREFERRED: "preferred",
-};
-
-const PREFERENCE_OPTIONS = [
-  { value: "preference1", label: "Preference 1" },
-  { value: "preference2", label: "Preference 2" },
-  { value: "preference3", label: "Preference 3" },
-  { value: "not qualified", label: "Not Qualified" },
-  { value: "qualified", label: "Qualified" },
-];
 
 function displayValue(value) {
   return value ? value : "Not available";
-}
-
-function normalizeSearch(value) {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
-
-function courseSelectionKey(course) {
-  return course.courseName;
-}
-
-function courseRowKey(course) {
-  return `${course.subject}-${course.courseName}`;
 }
 
 export default function FacultyCoursePreferencePage() {
   const router = useRouter();
   const { userid } = router.query;
 
+  // ── Faculty data loading (unchanged from original page) ────────────────────
   const [records, setRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [activeTab, setActiveTab] = useState(TAB_KEYS.ALL);
-  const [selections, setSelections] = useState({});
-  const [submitMessage, setSubmitMessage] = useState("");
 
   useEffect(() => {
     let isActive = true;
-
     async function loadRecords() {
       setIsLoading(true);
       setErrorMessage("");
-
       try {
         const config = getAppConfig();
         const nextRecords = await loadFacultyRecords({ config });
-
-        if (!isActive) {
-          return;
-        }
-
-        setRecords(nextRecords);
+        if (isActive) setRecords(nextRecords);
       } catch (error) {
-        if (!isActive) {
-          return;
-        }
-
-        setRecords([]);
-        setErrorMessage(
-          `Unable to load faculty data. ${error instanceof Error ? error.message : "Unknown error."}`
-        );
-      } finally {
         if (isActive) {
-          setIsLoading(false);
+          setRecords([]);
+          setErrorMessage(
+            `Unable to load faculty data. ${error instanceof Error ? error.message : "Unknown error."}`
+          );
         }
+      } finally {
+        if (isActive) setIsLoading(false);
       }
     }
-
     loadRecords();
-
-    return () => {
-      isActive = false;
-    };
+    return () => { isActive = false; };
   }, []);
 
   const faculty = useMemo(() => findFacultyByUserid(records, userid), [records, userid]);
 
-  const courseSelections = useMemo(() => {
-    const nextSelections = {};
+  // ── Academic year state ────────────────────────────────────────────────────
+  const [allYears, setAllYears] = useState([...INITIAL_ACADEMIC_YEARS]);
+  const [selectedYear, setSelectedYear] = useState(
+    INITIAL_ACADEMIC_YEARS[INITIAL_ACADEMIC_YEARS.length - 1].year
+  );
+  const [yearDataMap, setYearDataMap] = useState({});
+  const [saveMessage, setSaveMessage] = useState({ text: "", type: "" });
 
-    for (const preference of faculty?.coursePreferences ?? []) {
-      const selectionKey = preference.preferredCourseName || preference.courseCode;
-
-      if (selectionKey) {
-        nextSelections[selectionKey] = normalizeSearch(preference.priority);
+  // Populate year data once faculty is resolved
+  useEffect(() => {
+    if (!faculty) return;
+    const initial = getInitialYearDataForFaculty(faculty.userid);
+    if (initial) {
+      setYearDataMap(initial);
+    } else {
+      // Fallback: create empty data for every year in allYears
+      const empty = {};
+      for (const yr of INITIAL_ACADEMIC_YEARS) {
+        empty[yr.year] = createEmptyYearData();
       }
+      setYearDataMap(empty);
     }
-
-    return nextSelections;
   }, [faculty]);
 
-  useEffect(() => {
-    if (!faculty) {
-      return;
-    }
+  const isCurrentYearLocked = useMemo(
+    () => allYears.find((yr) => yr.year === selectedYear)?.locked ?? false,
+    [allYears, selectedYear]
+  );
 
-    setSelections(courseSelections);
-  }, [courseSelections, faculty]);
+  const currentYearData = useMemo(
+    () => yearDataMap[selectedYear] ?? createEmptyYearData(),
+    [yearDataMap, selectedYear]
+  );
 
-  const filteredAllCourses = useMemo(() => {
-    return courseCatalogMockData;
-  }, []);
+  // ── Year management ────────────────────────────────────────────────────────
+  function handleSelectYear(year) {
+    setSelectedYear(year);
+    setSaveMessage({ text: "", type: "" });
+  }
 
-  const preferredCourseRows = useMemo(() => {
-    return courseCatalogMockData.filter((course) => Boolean(selections[courseSelectionKey(course)]));
-  }, [selections]);
+  function handleCreateNewYear() {
+    const lastYear = allYears[allYears.length - 1];
+    if (!lastYear || lastYear.locked) return;
 
-  function updateSelection(course, isSelected) {
-    setSelections((currentSelections) => ({
-      ...currentSelections,
-      [courseSelectionKey(course)]: isSelected,
+    const newYearStr = getNextYearString(lastYear.year);
+    if (!newYearStr) return;
+
+    const newData = deepCopyYearData(yearDataMap[lastYear.year]);
+
+    setAllYears((prev) => [
+      ...prev.map((yr) =>
+        yr.year === lastYear.year ? { ...yr, locked: true } : yr
+      ),
+      { year: newYearStr, locked: false },
+    ]);
+    setYearDataMap((prev) => ({ ...prev, [newYearStr]: newData }));
+    setSelectedYear(newYearStr);
+    setSaveMessage({ text: "", type: "" });
+  }
+
+  // ── Year data updater ──────────────────────────────────────────────────────
+  function updateCurrentYearData(updater) {
+    setSaveMessage({ text: "", type: "" });
+    setYearDataMap((prev) => ({
+      ...prev,
+      [selectedYear]: updater(prev[selectedYear] ?? createEmptyYearData()),
     }));
-    setSubmitMessage("");
   }
 
-  function handleSubmitPreferences() {
-    const selectedCount = Object.values(selections).filter(Boolean).length;
-
-    setSubmitMessage(`Saved ${selectedCount} course preference${selectedCount === 1 ? "" : "s"}.`);
+  function updateSemesterPlan(semester, newRows) {
+    updateCurrentYearData((prev) => ({
+      ...prev,
+      semesterPlan: { ...prev.semesterPlan, [semester]: newRows },
+    }));
   }
 
-  function renderCourseTable(courses) {
-    if (courses.length === 0) {
-      return <div className="faculty-table-status" role="status">No courses match the current search.</div>;
-    }
-
-    const selectionRefreshKey = Object.entries(selections)
-      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-      .map(([key, value]) => `${key}:${value}`)
-      .join("|");
-    const tableRefreshKey = [
-      activeTab,
-      courses.length,
-      selectionRefreshKey,
-    ].join("-");
-
-    return (
-      <DataTableView
-        key={tableRefreshKey}
-        config={createFacultyDetailTableConfig({
-          filename: `${faculty.userid}-${activeTab}-course-preferences`,
-          title: `${faculty.name} ${activeTab === TAB_KEYS.ALL ? "All Courses" : "Preferred Courses"}`,
-          showButtons: false,
-        })}
-        refreshKey={tableRefreshKey}
-      >
-          <thead>
-            <tr>
-              <th>Subject</th>
-              <th>Course Name</th>
-              <th>Preference</th>
-            </tr>
-          </thead>
-          <tbody>
-            {courses.map((course) => {
-              const key = courseRowKey(course);
-              const currentPreference = selections[courseSelectionKey(course)] ?? "";
-
-              return (
-                <tr key={key}>
-                  <td>{displayValue(course.subject)}</td>
-                  <td>{displayValue(course.courseName)}</td>
-                  <td>
-                    <div className="faculty-course-preference-checkbox-group">
-                      {PREFERENCE_OPTIONS.map((option) => (
-                        <label
-                          className="faculty-course-preference-checkbox-label"
-                          key={option.value}
-                        >
-                          <input
-                            type="checkbox"
-                            className="faculty-course-preference-checkbox"
-                            checked={currentPreference === option.value}
-                            onChange={(event) =>
-                              updateSelection(
-                                course,
-                                event.target.checked ? option.value : ""
-                              )
-                            }
-                            aria-label={`${option.label} for ${course.courseName}`}
-                          />
-                          <span>{option.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-      </DataTableView>
-    );
+  function updateCoursePreferences(newPrefs) {
+    updateCurrentYearData((prev) => ({ ...prev, coursePreferences: newPrefs }));
   }
 
+  // ── Save (mock — no backend) ───────────────────────────────────────────────
+  function handleSave() {
+    setSaveMessage({ text: "Preferences saved successfully (mock).", type: "success" });
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
       <Head>
         <title>
-          {faculty ? `${faculty.name} Edit Course Preference | ${APP_TITLE}` : `Edit Course Preference | ${APP_TITLE}`}
+          {faculty
+            ? `${faculty.name} – Course Preference | ${APP_TITLE}`
+            : `Course Preference | ${APP_TITLE}`}
         </title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
@@ -228,31 +169,44 @@ export default function FacultyCoursePreferencePage() {
             {isLoading ? (
               <div className="faculty-detail-body">
                 <div className="faculty-table-status" role="status">
-                  Loading faculty course preferences...
+                  Loading faculty course preferences…
                 </div>
               </div>
             ) : errorMessage ? (
               <div className="faculty-detail-body">
-                <div className="faculty-table-status faculty-table-status-error" role="alert">
+                <div
+                  className="faculty-table-status faculty-table-status-error"
+                  role="alert"
+                >
                   {errorMessage}
                 </div>
               </div>
             ) : !faculty ? (
               <div className="faculty-detail-body">
-                <div className="faculty-table-status faculty-table-status-error" role="alert">
-                  No faculty detail was found for userid {displayValue(userid)}.
+                <div
+                  className="faculty-table-status faculty-table-status-error"
+                  role="alert"
+                >
+                  No faculty record found for userid {displayValue(userid)}.
                 </div>
               </div>
             ) : (
               <div className="faculty-detail-body">
                 <div className="faculty-detail-workspace">
+                  {/* ── Sidebar nav ─────────────────────────────────────────── */}
                   <aside className="faculty-detail-dashboard">
-                    <nav className="faculty-detail-dashboard-nav" aria-label="Faculty detail pages">
+                    <nav
+                      className="faculty-detail-dashboard-nav"
+                      aria-label="Faculty detail pages"
+                    >
                       <Link
                         className="faculty-detail-dashboard-item"
                         href={`/faculty/${faculty.userid}`}
                       >
-                        <span className="faculty-detail-dashboard-icon" aria-hidden="true">
+                        <span
+                          className="faculty-detail-dashboard-icon"
+                          aria-hidden="true"
+                        >
                           <svg
                             viewBox="0 0 16 16"
                             className="faculty-detail-dashboard-icon-svg"
@@ -269,7 +223,10 @@ export default function FacultyCoursePreferencePage() {
                         href={`/faculty/${faculty.userid}/course-preference`}
                         aria-current="page"
                       >
-                        <span className="faculty-detail-dashboard-icon" aria-hidden="true">
+                        <span
+                          className="faculty-detail-dashboard-icon"
+                          aria-hidden="true"
+                        >
                           <svg
                             viewBox="0 0 16 16"
                             className="faculty-detail-dashboard-icon-svg"
@@ -278,13 +235,16 @@ export default function FacultyCoursePreferencePage() {
                             <path d="M3 4.25h10v1.5H3Zm0 3h10v1.5H3Zm0 3h10v1.5H3Z" />
                           </svg>
                         </span>
-                        Edit Course Preference
+                        Course Preference
                       </Link>
                     </nav>
                   </aside>
 
+                  {/* ── Main content ─────────────────────────────────────────── */}
                   <div className="faculty-detail-content">
                     <div className="faculty-profile-layout">
+
+                      {/* Breadcrumb */}
                       <section
                         className="portal-page-intro portal-page-intro-compact"
                         aria-label="Page introduction"
@@ -292,74 +252,139 @@ export default function FacultyCoursePreferencePage() {
                         <h1 className="portal-page-title">{APP_TITLE}</h1>
                         <nav className="portal-breadcrumb" aria-label="Breadcrumb">
                           <Link href="/">CSE Faculty Portal</Link>
-                          <span>&gt;</span>
-                          <Link href={`/faculty/${faculty.userid}`}>Faculty</Link>
-                          <span>&gt;</span>
-                          <span>Edit Course Preference</span>
+                          <span aria-hidden="true">&gt;</span>
+                          <Link href={`/faculty/${faculty.userid}`}>
+                            {faculty.name}
+                          </Link>
+                          <span aria-hidden="true">&gt;</span>
+                          <span>Course Preference</span>
                         </nav>
                       </section>
 
-                      <section className="faculty-secondary-card">
-                        <div className="faculty-preference-heading">
-                          <h2>Edit Course Preference</h2>
-                          <p>{faculty.name}</p>
+                      {/* Page heading */}
+                      <div className="cp-page-heading">
+                        <div>
+                          <h2 className="cp-page-title">Course Preference</h2>
+                          <p className="cp-page-subtitle">{faculty.name}</p>
                         </div>
-
-                        <div className="faculty-secondary-tabs" role="tablist" aria-label="Course preference tabs">
-                          <button
-                            type="button"
-                            className={`faculty-secondary-tab ${activeTab === TAB_KEYS.ALL ? "is-active" : ""}`}
-                            onClick={() => setActiveTab(TAB_KEYS.ALL)}
-                            role="tab"
-                            aria-selected={activeTab === TAB_KEYS.ALL}
-                          >
-                            All Courses
-                          </button>
-                          <button
-                            type="button"
-                            className={`faculty-secondary-tab ${activeTab === TAB_KEYS.PREFERRED ? "is-active" : ""}`}
-                            onClick={() => setActiveTab(TAB_KEYS.PREFERRED)}
-                            role="tab"
-                            aria-selected={activeTab === TAB_KEYS.PREFERRED}
-                          >
-                            Preferred Courses
-                          </button>
-                        </div>
-
-                        <div className="faculty-secondary-body">
-                          <div className="faculty-secondary-section faculty-preference-section-inline">
-                            <div className="faculty-preference-heading">
-                              <h3>{activeTab === TAB_KEYS.ALL ? "All Courses" : "Preferred Courses"}</h3>
-                            </div>
-
-                            {activeTab === TAB_KEYS.ALL
-                              ? renderCourseTable(filteredAllCourses)
-                              : preferredCourseRows.length > 0
-                                ? renderCourseTable(preferredCourseRows)
-                                : <div className="faculty-table-status" role="status">No preferred courses have been selected yet.</div>}
-
-                            {activeTab === TAB_KEYS.PREFERRED ? (
-                              <div className="faculty-preference-actions">
-                                <button
-                                  type="button"
-                                  className="faculty-course-preference-submit"
-                                  onClick={handleSubmitPreferences}
-                                >
-                                  Submit
-                                </button>
-
-                                {submitMessage ? (
-                                  <div className="faculty-course-preference-feedback" role="status">
-                                    {submitMessage}
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
+                        {isCurrentYearLocked && (
+                          <div className="cp-readonly-notice" role="status">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+                              <path d="M11.5 7V5.5a3.5 3.5 0 0 0-7 0V7H3v7.5h10V7h-1.5ZM6 5.5a2 2 0 1 1 4 0V7H6V5.5Z" />
+                            </svg>
+                            Viewing read-only data for {selectedYear}
                           </div>
-                        </div>
-                      </section>
+                        )}
+                      </div>
+
+                      {/* Academic Year Selector */}
+                      <AcademicYearSelector
+                        years={allYears}
+                        selectedYear={selectedYear}
+                        onSelectYear={handleSelectYear}
+                        onCreateNewYear={handleCreateNewYear}
+                      />
+
+                      {/* ── Sections ──────────────────────────────────────────── */}
+                      <div className="cp-sections-stack">
+
+                        {/* 1. Faculty Information */}
+                        <FacultyInfoCard
+                          faculty={faculty}
+                          yearData={currentYearData}
+                          isLocked={isCurrentYearLocked}
+                          onUpdateYearData={updateCurrentYearData}
+                        />
+
+                        {/* 2. Semester Planning */}
+                        {(() => {
+                          const annualLoad = getComputedAnnualLoad(
+                            currentYearData.facultyType,
+                            currentYearData.roles
+                          );
+                          const sp = currentYearData.semesterPlan;
+                          const totalSlots =
+                            (sp.summer?.length ?? 0) +
+                            (sp.fall?.length ?? 0) +
+                            (sp.spring?.length ?? 0);
+                          const canAddSlot = !isCurrentYearLocked && totalSlots < annualLoad;
+                          const planWarnings = validateSemesterPlan(sp, annualLoad);
+                          return (
+                            <div className="cp-section-card">
+                              <div className="cp-section-header">
+                                <h3 className="cp-section-title">Semester Planning</h3>
+                                <div className="cp-section-header-right">
+                                  <span className="cp-annual-load-tag">
+                                    {totalSlots} / {annualLoad} slot{annualLoad !== 1 ? "s" : ""} planned
+                                  </span>
+                                  {isCurrentYearLocked && (
+                                    <span className="cp-locked-badge">Read-only</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="cp-section-body cp-semester-tables-body">
+                                {planWarnings.map((w, i) => (
+                                  <div
+                                    key={i}
+                                    className={`cp-validation-banner cp-validation-banner-${w.type}`}
+                                    role="alert"
+                                  >
+                                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+                                      <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566ZM8 5a.905.905 0 0 1 .9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5Zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
+                                    </svg>
+                                    {w.message}
+                                  </div>
+                                ))}
+                                {["Summer", "Fall", "Spring"].map((sem) => (
+                                  <SemesterPlanningTable
+                                    key={sem}
+                                    semester={sem}
+                                    rows={sp[sem.toLowerCase()] ?? []}
+                                    isLocked={isCurrentYearLocked}
+                                    canAdd={canAddSlot}
+                                    onChange={(newRows) =>
+                                      updateSemesterPlan(sem.toLowerCase(), newRows)
+                                    }
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* 3. Course Preferences */}
+                        <CoursePreferenceSection
+                          preferences={currentYearData.coursePreferences}
+                          isLocked={isCurrentYearLocked}
+                          onChange={updateCoursePreferences}
+                        />
+
+                        {/* Save bar */}
+                        {!isCurrentYearLocked && (
+                          <div className="cp-save-bar">
+                            <button
+                              type="button"
+                              className="cp-save-btn"
+                              onClick={handleSave}
+                            >
+                              Save Preferences
+                            </button>
+                            {saveMessage.text && (
+                              <span
+                                className={`cp-save-message cp-save-message-${saveMessage.type}`}
+                                role="status"
+                              >
+                                {saveMessage.text}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {/* /cp-sections-stack */}
+
                     </div>
                   </div>
+                  {/* /faculty-detail-content */}
                 </div>
               </div>
             )}

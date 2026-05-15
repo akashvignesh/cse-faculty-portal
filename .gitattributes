@@ -1,0 +1,27 @@
+# Enforce LF line endings in the repository
+# This prevents Git from converting LF to CRLF on checkout.
+# Promote consistent LF endings for text files.
+* text=auto eol=lf
+
+# Explicit defaults for common text file types
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.gitignore text eol=lf
+
+# Binary files should be treated as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.gz binary
