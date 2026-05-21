@@ -15,28 +15,31 @@ function displayValue(value) {
   return value ? value : "Not available";
 }
 
-// role values: "" = none, "P" = Position, "C" = Chair, "V" = Vice Chair, "X" = Member
-const ROLE_OPTIONS = [
-  { value: "",  label: "—"           },
-  { value: "P", label: "P — Position"  },
-  { value: "C", label: "C — Chair"     },
-  { value: "V", label: "V — Vice Chair"},
-  { value: "X", label: "X — Member"   },
+const roleCols      = committeeList.filter((c) => c.type === "role");
+const committeeCols = committeeList.filter((c) => c.type === "committee");
+
+const COMMITTEE_OPTIONS = [
+  { value: "",  label: "—" },
+  { value: "R", label: "R" },
+  { value: "C", label: "C" },
+  { value: "V", label: "V" },
+  { value: "M", label: "M" },
 ];
 
+// Legend — no "X" entry; role columns are self-explanatory via the "Roles" group header
 const LEGEND_ITEMS = [
-  { value: "P", label: "Position",  badgeClass: "committee-matrix-legend-badge-p" },
-  { value: "C", label: "Chair",     badgeClass: "committee-matrix-legend-badge-c" },
-  { value: "V", label: "Vice Chair",badgeClass: "committee-matrix-legend-badge-v" },
-  { value: "X", label: "Member",    badgeClass: "committee-matrix-legend-badge-x" },
+  { value: "R", label: "Role in committee", badgeClass: "committee-matrix-legend-badge-r" },
+  { value: "C", label: "Chair",             badgeClass: "committee-matrix-legend-badge-c" },
+  { value: "V", label: "Vice Chair",        badgeClass: "committee-matrix-legend-badge-v" },
+  { value: "M", label: "Member",            badgeClass: "committee-matrix-legend-badge-m" },
 ];
 
 const SUMMARY_COLS = [
-  { key: "chairs",        label: "# of Chairs",    editable: true,  type: "number" },
-  { key: "total",         label: "# of Committees", editable: false, type: "number" },
-  { key: "others",        label: "# of Others",    editable: true,  type: "number" },
-  { key: "servicePoints", label: "Service Points",  editable: true,  type: "number" },
-  { key: "comments",      label: "Comments",        editable: true,  type: "text"   },
+  { key: "chairs",        label: "# of Chairs",    editable: false, autoCompute: true  },
+  { key: "total",         label: "# of Committees", editable: false, autoCompute: false },
+  { key: "others",        label: "# of Others",    editable: true,  type: "number"     },
+  { key: "servicePoints", label: "Service Points",  editable: true,  type: "number"     },
+  { key: "comments",      label: "Comments",        editable: true,  type: "text"       },
 ];
 
 export default function FacultyCommitteePreferencePage() {
@@ -60,7 +63,6 @@ export default function FacultyCommitteePreferencePage() {
 
   useEffect(() => {
     let isActive = true;
-
     async function loadRecords() {
       setIsLoading(true);
       setErrorMessage("");
@@ -79,44 +81,38 @@ export default function FacultyCommitteePreferencePage() {
         if (isActive) setIsLoading(false);
       }
     }
-
     loadRecords();
     return () => { isActive = false; };
   }, []);
 
   const faculty = useMemo(() => findFacultyByUserid(records, userid), [records, userid]);
 
-  function getRole(uid, committeeId) {
+  function getValue(uid, committeeId) {
     return memberships[`${uid}-${committeeId}`] ?? "";
   }
 
-  function setRole(uid, committeeId, value) {
-    setMemberships((current) => ({
-      ...current,
-      [`${uid}-${committeeId}`]: value,
-    }));
+  function setValue(uid, committeeId, value) {
+    setMemberships((cur) => ({ ...cur, [`${uid}-${committeeId}`]: value }));
     setSubmitMessage("");
   }
 
+  function countChairs(uid) {
+    return committeeCols.filter((c) => getValue(uid, c.id) === "C").length;
+  }
+
   function countCommittees(uid) {
-    return committeeList.filter((c) => Boolean(getRole(uid, c.id))).length;
+    return committeeCols.filter((c) => Boolean(getValue(uid, c.id))).length;
   }
 
-  function getExtra(uid, key) {
-    return extras[uid]?.[key] ?? "";
-  }
-
-  function setExtra(uid, key, value) {
-    setExtras((current) => ({
-      ...current,
-      [uid]: { ...current[uid], [key]: value },
-    }));
+  function getExtra(uid, key) { return extras[uid]?.[key] ?? ""; }
+  function setExtra(uid, key, val) {
+    setExtras((cur) => ({ ...cur, [uid]: { ...cur[uid], [key]: val } }));
     setSubmitMessage("");
   }
 
   function handleSubmit() {
     const total = Object.values(memberships).filter(Boolean).length;
-    setSubmitMessage(`Saved ${total} committee assignment${total === 1 ? "" : "s"}.`);
+    setSubmitMessage(`Saved ${total} assignment${total === 1 ? "" : "s"}.`);
   }
 
   return (
@@ -153,7 +149,7 @@ export default function FacultyCommitteePreferencePage() {
               <div className="faculty-detail-body">
                 <div className="faculty-detail-workspace">
 
-                  {/* ── Left sidebar ── */}
+                  {/* ── Sidebar ── */}
                   <aside className="faculty-detail-dashboard">
                     <nav className="faculty-detail-dashboard-nav" aria-label="Faculty detail pages">
                       <Link className="faculty-detail-dashboard-item" href={`/faculty/${faculty.userid}`}>
@@ -212,7 +208,7 @@ export default function FacultyCommitteePreferencePage() {
                         <div className="faculty-secondary-body">
                           <div className="faculty-secondary-section faculty-preference-section-inline">
 
-                            {/* ── Legend ── */}
+                            {/* ── Legend (committee columns only) ── */}
                             <div className="committee-matrix-legend" aria-label="Role legend">
                               {LEGEND_ITEMS.map((item) => (
                                 <span key={item.value} className="committee-matrix-legend-item">
@@ -228,24 +224,60 @@ export default function FacultyCommitteePreferencePage() {
                             <div className="committee-matrix-wrapper">
                               <table className="committee-matrix-table" role="grid">
                                 <thead>
-                                  <tr>
-                                    <th className="committee-matrix-th-name" scope="col">
+                                  {/* ── Row 1: group labels ── */}
+                                  <tr className="committee-matrix-group-row">
+                                    {/* Faculty Name spans both header rows */}
+                                    <th
+                                      rowSpan={2}
+                                      className="committee-matrix-th-name"
+                                      scope="col"
+                                    >
                                       Faculty Name
                                     </th>
-                                    {committeeList.map((c) => (
+
+                                    {/* "Roles" group label spanning the 5 role columns */}
+                                    <th
+                                      colSpan={roleCols.length}
+                                      className="committee-matrix-th-group-roles"
+                                    >
+                                      Roles
+                                    </th>
+
+                                    {/* Empty filler for committee + summary columns */}
+                                    <th
+                                      colSpan={committeeCols.length + SUMMARY_COLS.length}
+                                      className="committee-matrix-th-group-empty"
+                                    />
+                                  </tr>
+
+                                  {/* ── Row 2: individual rotated column headers ── */}
+                                  <tr>
+                                    {roleCols.map((c) => (
                                       <th
                                         key={c.id}
-                                        className="committee-matrix-th-rotated"
+                                        className="committee-matrix-th-rotated committee-matrix-th-role-col committee-matrix-th-row2"
                                         scope="col"
                                         title={c.name}
                                       >
                                         <div className="committee-matrix-th-label">{c.name}</div>
                                       </th>
                                     ))}
+
+                                    {committeeCols.map((c) => (
+                                      <th
+                                        key={c.id}
+                                        className="committee-matrix-th-rotated committee-matrix-th-row2"
+                                        scope="col"
+                                        title={c.name}
+                                      >
+                                        <div className="committee-matrix-th-label">{c.name}</div>
+                                      </th>
+                                    ))}
+
                                     {SUMMARY_COLS.map((col) => (
                                       <th
                                         key={col.key}
-                                        className="committee-matrix-th-rotated committee-matrix-th-summary"
+                                        className="committee-matrix-th-rotated committee-matrix-th-summary committee-matrix-th-row2"
                                         scope="col"
                                         title={col.label}
                                       >
@@ -260,24 +292,50 @@ export default function FacultyCommitteePreferencePage() {
                                     const isEven = rowIndex % 2 === 1;
                                     return (
                                       <tr key={member.userid}>
+                                        {/* Sticky name cell */}
                                         <td className={`committee-matrix-td-name${isEven ? " committee-matrix-td-name-even" : ""}`}>
                                           {member.name}
                                         </td>
 
-                                        {committeeList.map((c) => {
-                                          const role = getRole(member.userid, c.id);
+                                        {/* Role columns — single X button (no checkbox) */}
+                                        {roleCols.map((c) => {
+                                          const marked = getValue(member.userid, c.id) === "X";
+                                          return (
+                                            <td key={c.id} className="committee-matrix-td-cell">
+                                              <button
+                                                type="button"
+                                                className={marked
+                                                  ? "committee-matrix-role-btn committee-matrix-role-btn-on"
+                                                  : "committee-matrix-role-btn committee-matrix-role-btn-off"
+                                                }
+                                                onClick={() =>
+                                                  setValue(member.userid, c.id, marked ? "" : "X")
+                                                }
+                                                aria-label={`${member.name} — ${c.name}${marked ? " (assigned)" : ""}`}
+                                                aria-pressed={marked}
+                                                title={`${member.name} — ${c.name}`}
+                                              >
+                                                {marked ? "X" : ""}
+                                              </button>
+                                            </td>
+                                          );
+                                        })}
+
+                                        {/* Committee columns — R/C/V/M dropdown */}
+                                        {committeeCols.map((c) => {
+                                          const val = getValue(member.userid, c.id);
                                           return (
                                             <td key={c.id} className="committee-matrix-td-cell">
                                               <select
-                                                className={`committee-matrix-select${role ? ` committee-matrix-select-${role}` : ""}`}
-                                                value={role}
-                                                onChange={(e) => setRole(member.userid, c.id, e.target.value)}
+                                                className={`committee-matrix-select${val ? ` committee-matrix-select-${val}` : ""}`}
+                                                value={val}
+                                                onChange={(e) => setValue(member.userid, c.id, e.target.value)}
                                                 aria-label={`${member.name} — ${c.name}`}
                                                 title={`${member.name} — ${c.name}`}
                                               >
-                                                {ROLE_OPTIONS.map((opt) => (
+                                                {COMMITTEE_OPTIONS.map((opt) => (
                                                   <option key={opt.value} value={opt.value}>
-                                                    {opt.value || "—"}
+                                                    {opt.label}
                                                   </option>
                                                 ))}
                                               </select>
@@ -285,11 +343,15 @@ export default function FacultyCommitteePreferencePage() {
                                           );
                                         })}
 
+                                        {/* Summary cells */}
                                         {SUMMARY_COLS.map((col) => {
                                           if (!col.editable) {
+                                            const computed = col.autoCompute
+                                              ? countChairs(member.userid)
+                                              : countCommittees(member.userid);
                                             return (
                                               <td key={col.key} className="committee-matrix-td-summary committee-matrix-td-computed">
-                                                {countCommittees(member.userid)}
+                                                {computed}
                                               </td>
                                             );
                                           }
@@ -328,7 +390,6 @@ export default function FacultyCommitteePreferencePage() {
                                 </div>
                               ) : null}
                             </div>
-
                           </div>
                         </div>
                       </section>

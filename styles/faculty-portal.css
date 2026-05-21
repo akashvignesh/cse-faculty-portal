@@ -1330,10 +1330,11 @@ div.dt-button-background {
   margin-right: 4px;
 }
 
-.committee-matrix-legend-badge-p { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-.committee-matrix-legend-badge-c { background: #005bbb; color: #ffffff; border: 1px solid #005bbb; }
-.committee-matrix-legend-badge-v { background: #fff3e0; color: #bf360c; border: 1px solid #ffcc80; }
-.committee-matrix-legend-badge-x { background: #4a148c; color: #ffffff; border: 1px solid #4a148c; }
+.committee-matrix-legend-badge-role { background: #1b4332; color: #ffffff; border: 1px solid #1b4332; }
+.committee-matrix-legend-badge-r    { background: #e8f5e9; color: #1b4332; border: 1px solid #a5d6a7; }
+.committee-matrix-legend-badge-c    { background: #005bbb; color: #ffffff; border: 1px solid #005bbb; }
+.committee-matrix-legend-badge-v    { background: #fff3e0; color: #bf360c; border: 1px solid #ffcc80; }
+.committee-matrix-legend-badge-m    { background: #4a148c; color: #ffffff; border: 1px solid #4a148c; }
 
 .committee-matrix-legend-item {
   display: inline-flex;
@@ -1396,8 +1397,45 @@ div.dt-button-background {
   text-align: center;
 }
 
+/* Role position columns (first 5) — darker navy */
+.committee-matrix-th-role-col {
+  background: #1a3a6b;
+}
+
 .committee-matrix-th-summary {
   background: #1565c0;
+}
+
+/* ── Two-row header: group labels (row 1) ── */
+.committee-matrix-th-group-roles {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: #1a3a6b;
+  color: #ffffff;
+  font-family: var(--font-body-strong);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 6px 8px;
+  height: 34px;
+  border-right: 2px solid rgba(255, 255, 255, 0.35);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+}
+
+.committee-matrix-th-group-empty {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #005bbb;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  height: 34px;
+}
+
+/* Second header row — offset down by first row height so sticky works correctly */
+.committee-matrix-th-row2 {
+  top: 34px !important;
 }
 
 .committee-matrix-th-label {
@@ -1516,11 +1554,49 @@ div.dt-button-background {
   box-shadow: 0 0 0 2px rgba(0, 91, 187, 0.15);
 }
 
-/* Value-based coloring */
-.committee-matrix-select-P { background: #e8f5e9 !important; color: #2e7d32 !important; border-color: #a5d6a7 !important; }
+/* Value-based coloring for committee dropdowns */
+.committee-matrix-select-R { background: #e8f5e9 !important; color: #1b4332 !important; border-color: #a5d6a7 !important; }
 .committee-matrix-select-C { background: #005bbb !important; color: #ffffff !important; border-color: #005bbb !important; }
 .committee-matrix-select-V { background: #fff3e0 !important; color: #bf360c !important; border-color: #ffcc80 !important; }
-.committee-matrix-select-X { background: #4a148c !important; color: #ffffff !important; border-color: #4a148c !important; }
+.committee-matrix-select-M { background: #4a148c !important; color: #ffffff !important; border-color: #4a148c !important; }
+
+/* ── Role column X toggle button (first 5 cols) ── */
+.committee-matrix-role-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 26px;
+  border-radius: 3px;
+  font-family: var(--font-body-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.committee-matrix-role-btn-off {
+  background: transparent;
+  border: 1px solid #c8d3de;
+  color: transparent;
+}
+
+.committee-matrix-role-btn-off:hover {
+  border-color: #1b4332;
+  background: #d8f0e4;
+  color: #1b4332;
+}
+
+.committee-matrix-role-btn-on {
+  background: #1b4332;
+  border: 1px solid #1b4332;
+  color: #ffffff;
+}
+
+.committee-matrix-role-btn-on:hover {
+  background: #0f2d1e;
+  border-color: #0f2d1e;
+}
 
 /* ── Summary input fields ── */
 .committee-matrix-input-number {
