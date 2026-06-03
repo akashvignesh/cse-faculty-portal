@@ -1549,30 +1549,57 @@ div.dt-button-background {
   letter-spacing: 0.02em;
 }
 
-.cp-create-year-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 32px;
-  padding: 4px 12px;
-  border: 1px dashed var(--ub-blue);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ub-blue);
-  font-family: var(--font-body-strong);
-  font-size: 0.84rem;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.cp-create-year-btn:hover {
-  background: #eef5ff;
-}
-
 /* ── Sections stack ───────────────────────────────────────────────────────── */
 .cp-sections-stack {
   display: grid;
   gap: 16px;
+}
+
+.cp-tab-shell {
+  display: grid;
+  gap: 0;
+}
+
+.cp-tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 1px solid #d5dbe3;
+}
+
+.cp-tab-btn {
+  min-height: 38px;
+  padding: 8px 16px;
+  border: 1px solid #d5dbe3;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: #f5f8fc;
+  color: var(--ub-blue);
+  font-family: var(--font-body-strong);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.cp-tab-btn + .cp-tab-btn {
+  margin-left: 6px;
+}
+
+.cp-tab-btn.is-active {
+  background: #ffffff;
+  border-color: var(--ub-blue);
+  color: var(--ub-blue-deep);
+  margin-bottom: -1px;
+}
+
+.cp-tab-btn:focus-visible {
+  outline: 2px solid var(--ub-blue);
+  outline-offset: 2px;
+}
+
+.cp-tab-panel {
+  display: grid;
+  gap: 16px;
+  padding-top: 16px;
 }
 
 /* ── Section card (shared by all sections) ───────────────────────────────── */
@@ -2092,31 +2119,92 @@ div.dt-button-background {
 }
 
 /* ── Course Preference Grid (datatable-style checkbox ranking) ────────────── */
-.cp-pref-instructions {
-  margin: 0 0 14px;
-  padding: 10px 14px;
-  border-left: 3px solid var(--ub-blue);
-  background: #f0f6ff;
-  border-radius: 0 4px 4px 0;
-  color: var(--text-body);
-  font-size: 0.88rem;
-  line-height: 1.5;
-}
-
 .cp-section-header-right {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.cp-pref-count-badge {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 12px;
-  background: var(--ub-blue);
-  color: #fff;
+.cp-pref-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -14px -14px 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #d5dbe3;
+  background: #ffffff;
+}
+
+.cp-pref-view-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #ccd2da;
+  border-radius: 4px;
+  background: #f5f8fc;
+}
+
+.cp-pref-view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 0;
+  border-right: 1px solid #ccd2da;
+  background: transparent;
+  color: var(--ub-blue);
   font-family: var(--font-body-strong);
-  font-size: 0.78rem;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.cp-pref-view-tab:last-child {
+  border-right: 0;
+}
+
+.cp-pref-view-tab.is-active {
+  background: var(--ub-blue);
+  color: #ffffff;
+}
+
+.cp-pref-view-tab:focus-visible {
+  outline: 2px solid var(--ub-blue);
+  outline-offset: -2px;
+}
+
+.cp-pref-view-tab span {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ub-blue-deep);
+  font-size: 0.74rem;
+  text-align: center;
+}
+
+.cp-pref-view-tab.is-active span {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.cp-pref-save-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cp-pref-save-btn {
+  min-height: 34px;
+  padding: 7px 16px;
+  font-size: 0.88rem;
+  white-space: nowrap;
 }
 
 .cp-pref-grid-wrapper {
@@ -2193,6 +2281,14 @@ td.cp-pref-grid-col-rank {
 
 .cp-pref-grid tbody tr:nth-child(even) td { background: #f7f9fc; }
 .cp-pref-grid tbody tr:hover td         { background: #eef5ff; }
+
+.cp-pref-empty {
+  padding: 18px 14px;
+  border: 1px solid #d5dbe3;
+  border-top: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
 
 .cp-pref-grid-row-ranked td {
   background: #f0f7ff !important;

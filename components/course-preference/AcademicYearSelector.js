@@ -1,5 +1,3 @@
-import { getNextYearString } from "./coursePreferenceUtils";
-
 function LockIcon() {
   return (
     <svg
@@ -21,29 +19,11 @@ export default function AcademicYearSelector({
   years,
   selectedYear,
   onSelectYear,
-  onCreateNewYear,
 }) {
-  const lastYear = years[years.length - 1];
-  const nextYearLabel = lastYear ? getNextYearString(lastYear.year) : "";
-  const canCreate = lastYear && !lastYear.locked && !!nextYearLabel;
-
   return (
     <div className="cp-year-selector">
       <div className="cp-year-selector-header">
         <span className="cp-year-selector-title">Academic Year</span>
-        {canCreate && (
-          <button
-            type="button"
-            className="cp-create-year-btn"
-            onClick={onCreateNewYear}
-            aria-label={`Create academic year ${nextYearLabel}`}
-          >
-            <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true">
-              <path d="M8.75 3.25a.75.75 0 0 0-1.5 0V7.25H3.25a.75.75 0 0 0 0 1.5H7.25v4a.75.75 0 0 0 1.5 0v-4h4a.75.75 0 0 0 0-1.5h-4V3.25Z" />
-            </svg>
-            Create {nextYearLabel}
-          </button>
-        )}
       </div>
 
       <div className="cp-year-pills" role="tablist" aria-label="Select academic year">

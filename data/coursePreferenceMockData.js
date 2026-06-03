@@ -1,5 +1,5 @@
 // Mock data for the redesigned Course Preference feature.
-// This is frontend-only mock state — no backend persistence.
+// This is frontend-only mock state; no backend persistence.
 
 export const INITIAL_ACADEMIC_YEARS = [
   { year: "2022-2023", locked: true },
@@ -8,7 +8,6 @@ export const INITIAL_ACADEMIC_YEARS = [
   { year: "2025-2026", locked: false },
 ];
 
-// Shorthand builders to keep the data concise
 function slot(id, status, comment) {
   return { id, status, comment };
 }
@@ -17,16 +16,58 @@ function pref(id, courseCode, courseName, ranking) {
   return { id, courseCode, courseName, ranking };
 }
 
+function profTrackYear(prefix, roles = [], prefs = []) {
+  const released = roles.includes("Chair");
+  return {
+    facultyType: "Prof Track",
+    roles,
+    requestedLoad: released ? { summer: 0, fall: 0, spring: 0 } : { summer: 0, fall: 2, spring: 1 },
+    semesterPlan: released
+      ? { summer: [], fall: [], spring: [] }
+      : {
+          summer: [],
+          fall: [
+            slot(`${prefix}-f1`, "Teaching", "Regular"),
+            slot(`${prefix}-f2`, "Teaching", "Biannual"),
+          ],
+          spring: [slot(`${prefix}-s1`, "Teaching", "Regular")],
+        },
+    coursePreferences: prefs,
+  };
+}
+
+function lecture10Year(prefix, prefs = []) {
+  return {
+    facultyType: "Lecture 10",
+    roles: [],
+    requestedLoad: { summer: 0, fall: 3, spring: 3 },
+    semesterPlan: {
+      summer: [],
+      fall: [
+        slot(`${prefix}-f1`, "Teaching", "Regular"),
+        slot(`${prefix}-f2`, "Teaching", "Regular"),
+        slot(`${prefix}-f3`, "Teaching", "Biannual"),
+      ],
+      spring: [
+        slot(`${prefix}-s1`, "Teaching", "Regular"),
+        slot(`${prefix}-s2`, "Teaching", "Regular"),
+        slot(`${prefix}-s3`, "Teaching", "Biannual"),
+      ],
+    },
+    coursePreferences: prefs,
+  };
+}
+
 export const FACULTY_YEAR_DATA = {
   jsmith: {
     "2025-2026": {
-      facultyType: "Associate Professor",
+      facultyType: "Prof Track",
       roles: ["Associate Chair"],
-      requestedLoad: { summer: 0, fall: 1, spring: 0 },
+      requestedLoad: { summer: 0, fall: 1, spring: 1 },
       semesterPlan: {
         summer: [],
         fall: [slot("js-25-f1", "Teaching", "Regular")],
-        spring: [],
+        spring: [slot("js-25-s1", "Not Teaching", "Course Release")],
       },
       coursePreferences: [
         pref("js-cp1", "CSE521", "521LEC-Operating Systems", 5),
@@ -36,194 +77,64 @@ export const FACULTY_YEAR_DATA = {
       ],
     },
     "2024-2025": {
-      facultyType: "Associate Professor",
-      roles: ["Associate Chair"],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("js-24-f1", "Teaching", "Distributed Systems")],
-        spring: [slot("js-24-s1", "Teaching", "Operating Systems")],
-      },
-      coursePreferences: [
+      ...profTrackYear("js-24", ["Associate Chair"], [
         pref("js-24-cp1", "CSE521", "Operating Systems", 5),
         pref("js-24-cp2", "CSE486", "Distributed Systems", 4),
-      ],
-    },
-    "2023-2024": {
-      facultyType: "Associate Professor",
-      roles: [],
+      ]),
       requestedLoad: { summer: 0, fall: 1, spring: 1 },
       semesterPlan: {
         summer: [],
-        fall: [slot("js-23-f1", "Teaching", "")],
-        spring: [slot("js-23-s1", "Teaching", "")],
+        fall: [slot("js-24-f1", "Teaching", "Regular")],
+        spring: [slot("js-24-s1", "Not Teaching", "Course Release")],
       },
-      coursePreferences: [pref("js-23-cp1", "CSE521", "Operating Systems", 5)],
     },
-    "2022-2023": {
-      facultyType: "Associate Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("js-22-f1", "Teaching", "")],
-        spring: [slot("js-22-s1", "Teaching", "")],
-      },
-      coursePreferences: [],
-    },
+    "2023-2024": profTrackYear("js-23", [], [
+      pref("js-23-cp1", "CSE521", "Operating Systems", 5),
+    ]),
+    "2022-2023": profTrackYear("js-22"),
   },
 
   abrown: {
-    "2025-2026": {
-      facultyType: "Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("ab-25-f1", "Teaching", "Regular")],
-        spring: [slot("ab-25-s1", "Teaching", "Regular")],
-      },
-      coursePreferences: [
-        pref("ab-cp1", "CSE115LLB-Introduction to Computer Science I", "CSE115LLB-Introduction to Computer Science I", 5),
-        pref("ab-cp2", "CSE116LLB-Introduction to Computer Science II", "CSE116LLB-Introduction to Computer Science II", 5),
-        pref("ab-cp3", "CSE331LR-Algorithms and Complexity", "CSE331LR-Algorithms and Complexity", 4),
-        pref("ab-cp4", "CSE431LEC-Algorithms Analysis and Design", "CSE431LEC-Algorithms Analysis and Design", 4),
-        pref("ab-cp5", "CSE250LR-Data Structures", "CSE250LR-Data Structures", 3),
-      ],
-    },
-    "2024-2025": {
-      facultyType: "Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("ab-24-f1", "Teaching", "Regular")],
-        spring: [slot("ab-24-s1", "Teaching", "Regular")],
-      },
-      coursePreferences: [
-        pref("ab-24-cp1", "CSE331LR-Algorithms and Complexity", "CSE331LR-Algorithms and Complexity", 5),
-        pref("ab-24-cp2", "CSE431LEC-Algorithms Analysis and Design", "CSE431LEC-Algorithms Analysis and Design", 4),
-      ],
-    },
-    "2023-2024": {
-      facultyType: "Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("ab-23-f1", "Teaching", "")],
-        spring: [slot("ab-23-s1", "Teaching", "")],
-      },
-      coursePreferences: [],
-    },
-    "2022-2023": {
-      facultyType: "Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("ab-22-f1", "Teaching", "")],
-        spring: [slot("ab-22-s1", "Teaching", "")],
-      },
-      coursePreferences: [],
-    },
+    "2025-2026": lecture10Year("ab-25", [
+      pref("ab-cp1", "CSE115", "115LLB-Introduction to Computer Science I", 5),
+      pref("ab-cp2", "CSE116", "116LLB-Introduction to Computer Science II", 5),
+      pref("ab-cp3", "CSE331", "331LR-Algorithms and Complexity", 4),
+      pref("ab-cp4", "CSE431", "431LEC-Algorithms Analysis and Design", 4),
+      pref("ab-cp5", "CSE250", "250LR-Data Structures", 3),
+    ]),
+    "2024-2025": lecture10Year("ab-24", [
+      pref("ab-24-cp1", "CSE331", "331LR-Algorithms and Complexity", 5),
+      pref("ab-24-cp2", "CSE431", "431LEC-Algorithms Analysis and Design", 4),
+    ]),
+    "2023-2024": lecture10Year("ab-23"),
+    "2022-2023": lecture10Year("ab-22"),
   },
 
   rlee: {
-    "2025-2026": {
-      facultyType: "Assistant Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("rl-25-f1", "Teaching", "Regular")],
-        spring: [slot("rl-25-s1", "Teaching", "Regular")],
-      },
-      coursePreferences: [
-        pref("rl-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
-        pref("rl-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
-        pref("rl-cp3", "CSE368", "368LR-Introduction to Artificial Intelligence", 4),
-        pref("rl-cp4", "CSE440", "440LEC-Machine Learning and Society for Majors", 3),
-      ],
-    },
-    "2024-2025": {
-      facultyType: "Assistant Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("rl-24-f1", "Teaching", "")],
-        spring: [slot("rl-24-s1", "Teaching", "")],
-      },
-      coursePreferences: [pref("rl-24-cp1", "CSE474", "Introduction to Machine Learning", 5)],
-    },
-    "2023-2024": {
-      facultyType: "Assistant Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("rl-23-f1", "Teaching", "")],
-        spring: [slot("rl-23-s1", "Teaching", "")],
-      },
-      coursePreferences: [],
-    },
-    "2022-2023": {
-      facultyType: "Assistant Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("rl-22-f1", "Teaching", "")],
-        spring: [slot("rl-22-s1", "Teaching", "")],
-      },
-      coursePreferences: [],
-    },
+    "2025-2026": profTrackYear("rl-25", [], [
+      pref("rl-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
+      pref("rl-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
+      pref("rl-cp3", "CSE368", "368LR-Introduction to Artificial Intelligence", 4),
+      pref("rl-cp4", "CSE440", "440LEC-Machine Learning and Society for Majors", 3),
+    ]),
+    "2024-2025": profTrackYear("rl-24", [], [
+      pref("rl-24-cp1", "CSE474", "Introduction to Machine Learning", 5),
+    ]),
+    "2023-2024": profTrackYear("rl-23"),
+    "2022-2023": profTrackYear("rl-22"),
   },
 
   roshana: {
-    "2025-2026": {
-      facultyType: "Assistant Professor",
-      roles: ["Chair"],
-      requestedLoad: { summer: 0, fall: 0, spring: 0 },
-      semesterPlan: { summer: [], fall: [], spring: [] },
-      coursePreferences: [
-        pref("ra-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
-        pref("ra-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
-        pref("ra-cp3", "CSE667", "667LEC-Advanced Topics in Computational Linguistics", 4),
-      ],
-    },
-    "2024-2025": {
-      facultyType: "Assistant Professor",
-      roles: ["Chair"],
-      requestedLoad: { summer: 0, fall: 0, spring: 0 },
-      semesterPlan: { summer: [], fall: [], spring: [] },
-      coursePreferences: [
-        pref("ra-24-cp1", "CSE474", "Introduction to Machine Learning", 5),
-      ],
-    },
-    "2023-2024": {
-      facultyType: "Assistant Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("ra-23-f1", "Teaching", "")],
-        spring: [slot("ra-23-s1", "Teaching", "")],
-      },
-      coursePreferences: [],
-    },
-    "2022-2023": {
-      facultyType: "Assistant Professor",
-      roles: [],
-      requestedLoad: { summer: 0, fall: 1, spring: 1 },
-      semesterPlan: {
-        summer: [],
-        fall: [slot("ra-22-f1", "Teaching", "")],
-        spring: [slot("ra-22-s1", "Teaching", "")],
-      },
-      coursePreferences: [],
-    },
+    "2025-2026": profTrackYear("ra-25", ["Chair"], [
+      pref("ra-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
+      pref("ra-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
+      pref("ra-cp3", "CSE667", "667LEC-Advanced Topics in Computational Linguistics", 4),
+    ]),
+    "2024-2025": profTrackYear("ra-24", ["Chair"], [
+      pref("ra-24-cp1", "CSE474", "Introduction to Machine Learning", 5),
+    ]),
+    "2023-2024": profTrackYear("ra-23"),
+    "2022-2023": profTrackYear("ra-22"),
   },
 };
 

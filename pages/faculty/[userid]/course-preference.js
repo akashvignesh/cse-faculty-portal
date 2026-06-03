@@ -6,12 +6,11 @@ import FacultyPortalHeader from "../../../components/FacultyPortalHeader";
 import PortalFooter from "../../../components/PortalFooter";
 import AcademicYearSelector from "../../../components/course-preference/AcademicYearSelector";
 import FacultyInfoCard from "../../../components/course-preference/FacultyInfoCard";
+import SemesterLoadSection from "../../../components/course-preference/SemesterLoadSection";
 import SemesterPlanningTable from "../../../components/course-preference/SemesterPlanningTable";
 import CoursePreferenceSection from "../../../components/course-preference/CoursePreferenceSection";
 import {
-  deepCopyYearData,
   createEmptyYearData,
-  getNextYearString,
   getComputedAnnualLoad,
   validateSemesterPlan,
 } from "../../../components/course-preference/coursePreferenceUtils";
@@ -29,14 +28,50 @@ function displayValue(value) {
   return value ? value : "Not available";
 }
 
+function SidebarNav({ faculty }) {
+  return (
+    <aside className="faculty-detail-dashboard">
+      <nav className="faculty-detail-dashboard-nav" aria-label="Faculty detail pages">
+        <Link className="faculty-detail-dashboard-item" href={`/faculty/${faculty.userid}`}>
+          <span className="faculty-detail-dashboard-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" className="faculty-detail-dashboard-icon-svg" focusable="false">
+              <path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Zm0 1.25c-2.9 0-5.25 1.52-5.25 3.4V14h10.5v-1.35c0-1.88-2.35-3.4-5.25-3.4Z" />
+            </svg>
+          </span>
+          Profile
+        </Link>
+
+        <Link
+          className="faculty-detail-dashboard-item is-active"
+          href={`/faculty/${faculty.userid}/course-preference`}
+          aria-current="page"
+        >
+          <span className="faculty-detail-dashboard-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" className="faculty-detail-dashboard-icon-svg" focusable="false">
+              <path d="M3 4.25h10v1.5H3Zm0 3h10v1.5H3Zm0 3h10v1.5H3Z" />
+            </svg>
+          </span>
+          Course Preference
+        </Link>
+      </nav>
+    </aside>
+  );
+}
+
 export default function FacultyCoursePreferencePage() {
   const router = useRouter();
   const { userid } = router.query;
 
-  // ── Faculty data loading (unchanged from original page) ────────────────────
   const [records, setRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [allYears] = useState([...INITIAL_ACADEMIC_YEARS]);
+  const [selectedYear, setSelectedYear] = useState(
+    INITIAL_ACADEMIC_YEARS[INITIAL_ACADEMIC_YEARS.length - 1].year
+  );
+  const [yearDataMap, setYearDataMap] = useState({});
+  const [saveMessage, setSaveMessage] = useState({ text: "", type: "" });
+  const [activeTab, setActiveTab] = useState("semester");
 
   useEffect(() => {
     let isActive = true;
@@ -59,33 +94,26 @@ export default function FacultyCoursePreferencePage() {
       }
     }
     loadRecords();
-    return () => { isActive = false; };
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   const faculty = useMemo(() => findFacultyByUserid(records, userid), [records, userid]);
 
-  // ── Academic year state ────────────────────────────────────────────────────
-  const [allYears, setAllYears] = useState([...INITIAL_ACADEMIC_YEARS]);
-  const [selectedYear, setSelectedYear] = useState(
-    INITIAL_ACADEMIC_YEARS[INITIAL_ACADEMIC_YEARS.length - 1].year
-  );
-  const [yearDataMap, setYearDataMap] = useState({});
-  const [saveMessage, setSaveMessage] = useState({ text: "", type: "" });
-
-  // Populate year data once faculty is resolved
   useEffect(() => {
     if (!faculty) return;
     const initial = getInitialYearDataForFaculty(faculty.userid);
     if (initial) {
       setYearDataMap(initial);
-    } else {
-      // Fallback: create empty data for every year in allYears
-      const empty = {};
-      for (const yr of INITIAL_ACADEMIC_YEARS) {
-        empty[yr.year] = createEmptyYearData();
-      }
-      setYearDataMap(empty);
+      return;
     }
+
+    const empty = {};
+    for (const yr of INITIAL_ACADEMIC_YEARS) {
+      empty[yr.year] = createEmptyYearData();
+    }
+    setYearDataMap(empty);
   }, [faculty]);
 
   const isCurrentYearLocked = useMemo(
@@ -98,34 +126,13 @@ export default function FacultyCoursePreferencePage() {
     [yearDataMap, selectedYear]
   );
 
-  // ── Year management ────────────────────────────────────────────────────────
   function handleSelectYear(year) {
     setSelectedYear(year);
     setSaveMessage({ text: "", type: "" });
   }
 
-  function handleCreateNewYear() {
-    const lastYear = allYears[allYears.length - 1];
-    if (!lastYear || lastYear.locked) return;
-
-    const newYearStr = getNextYearString(lastYear.year);
-    if (!newYearStr) return;
-
-    const newData = deepCopyYearData(yearDataMap[lastYear.year]);
-
-    setAllYears((prev) => [
-      ...prev.map((yr) =>
-        yr.year === lastYear.year ? { ...yr, locked: true } : yr
-      ),
-      { year: newYearStr, locked: false },
-    ]);
-    setYearDataMap((prev) => ({ ...prev, [newYearStr]: newData }));
-    setSelectedYear(newYearStr);
-    setSaveMessage({ text: "", type: "" });
-  }
-
-  // ── Year data updater ──────────────────────────────────────────────────────
   function updateCurrentYearData(updater) {
+    if (isCurrentYearLocked) return;
     setSaveMessage({ text: "", type: "" });
     setYearDataMap((prev) => ({
       ...prev,
@@ -144,18 +151,71 @@ export default function FacultyCoursePreferencePage() {
     updateCurrentYearData((prev) => ({ ...prev, coursePreferences: newPrefs }));
   }
 
-  // ── Save (mock — no backend) ───────────────────────────────────────────────
   function handleSave() {
     setSaveMessage({ text: "Preferences saved successfully (mock).", type: "success" });
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  function renderSemesterPlanning() {
+    const annualLoad = getComputedAnnualLoad(currentYearData.facultyType, currentYearData.roles);
+    const expectedSlots = Math.ceil(annualLoad);
+    const sp = currentYearData.semesterPlan;
+    const totalSlots =
+      (sp.summer?.length ?? 0) + (sp.fall?.length ?? 0) + (sp.spring?.length ?? 0);
+    const planWarnings = validateSemesterPlan(sp, annualLoad);
+
+    return (
+      <>
+        <SemesterLoadSection
+          yearData={currentYearData}
+          isLocked={isCurrentYearLocked}
+          onUpdateYearData={updateCurrentYearData}
+        />
+
+        <div className="cp-section-card">
+          <div className="cp-section-header">
+            <h3 className="cp-section-title">Semester Planning</h3>
+            <div className="cp-section-header-right">
+              <span className="cp-annual-load-tag">
+                {totalSlots} / {expectedSlots} slot{expectedSlots !== 1 ? "s" : ""} planned
+              </span>
+              {isCurrentYearLocked && <span className="cp-locked-badge">Read-only</span>}
+            </div>
+          </div>
+          <div className="cp-section-body cp-semester-tables-body">
+            {planWarnings.map((warning, index) => (
+              <div
+                key={index}
+                className={`cp-validation-banner cp-validation-banner-${warning.type}`}
+                role="alert"
+              >
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+                  <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566ZM8 5a.905.905 0 0 1 .9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5Zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
+                </svg>
+                {warning.message}
+              </div>
+            ))}
+            {["Summer", "Fall", "Spring"].map((semester) => (
+              <SemesterPlanningTable
+                key={semester}
+                semester={semester}
+                rows={sp[semester.toLowerCase()] ?? []}
+                isLocked={isCurrentYearLocked}
+                canAdd={false}
+                onChange={(newRows) => updateSemesterPlan(semester.toLowerCase(), newRows)}
+              />
+            ))}
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <Head>
         <title>
           {faculty
-            ? `${faculty.name} – Course Preference | ${APP_TITLE}`
+            ? `${faculty.name} - Course Preference | ${APP_TITLE}`
             : `Course Preference | ${APP_TITLE}`}
         </title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -169,82 +229,28 @@ export default function FacultyCoursePreferencePage() {
             {isLoading ? (
               <div className="faculty-detail-body">
                 <div className="faculty-table-status" role="status">
-                  Loading faculty course preferences…
+                  Loading faculty course preferences...
                 </div>
               </div>
             ) : errorMessage ? (
               <div className="faculty-detail-body">
-                <div
-                  className="faculty-table-status faculty-table-status-error"
-                  role="alert"
-                >
+                <div className="faculty-table-status faculty-table-status-error" role="alert">
                   {errorMessage}
                 </div>
               </div>
             ) : !faculty ? (
               <div className="faculty-detail-body">
-                <div
-                  className="faculty-table-status faculty-table-status-error"
-                  role="alert"
-                >
+                <div className="faculty-table-status faculty-table-status-error" role="alert">
                   No faculty record found for userid {displayValue(userid)}.
                 </div>
               </div>
             ) : (
               <div className="faculty-detail-body">
                 <div className="faculty-detail-workspace">
-                  {/* ── Sidebar nav ─────────────────────────────────────────── */}
-                  <aside className="faculty-detail-dashboard">
-                    <nav
-                      className="faculty-detail-dashboard-nav"
-                      aria-label="Faculty detail pages"
-                    >
-                      <Link
-                        className="faculty-detail-dashboard-item"
-                        href={`/faculty/${faculty.userid}`}
-                      >
-                        <span
-                          className="faculty-detail-dashboard-icon"
-                          aria-hidden="true"
-                        >
-                          <svg
-                            viewBox="0 0 16 16"
-                            className="faculty-detail-dashboard-icon-svg"
-                            focusable="false"
-                          >
-                            <path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Zm0 1.25c-2.9 0-5.25 1.52-5.25 3.4V14h10.5v-1.35c0-1.88-2.35-3.4-5.25-3.4Z" />
-                          </svg>
-                        </span>
-                        Profile
-                      </Link>
+                  <SidebarNav faculty={faculty} />
 
-                      <Link
-                        className="faculty-detail-dashboard-item is-active"
-                        href={`/faculty/${faculty.userid}/course-preference`}
-                        aria-current="page"
-                      >
-                        <span
-                          className="faculty-detail-dashboard-icon"
-                          aria-hidden="true"
-                        >
-                          <svg
-                            viewBox="0 0 16 16"
-                            className="faculty-detail-dashboard-icon-svg"
-                            focusable="false"
-                          >
-                            <path d="M3 4.25h10v1.5H3Zm0 3h10v1.5H3Zm0 3h10v1.5H3Z" />
-                          </svg>
-                        </span>
-                        Course Preference
-                      </Link>
-                    </nav>
-                  </aside>
-
-                  {/* ── Main content ─────────────────────────────────────────── */}
                   <div className="faculty-detail-content">
                     <div className="faculty-profile-layout">
-
-                      {/* Breadcrumb */}
                       <section
                         className="portal-page-intro portal-page-intro-compact"
                         aria-label="Page introduction"
@@ -253,15 +259,12 @@ export default function FacultyCoursePreferencePage() {
                         <nav className="portal-breadcrumb" aria-label="Breadcrumb">
                           <Link href="/">CSE Faculty Portal</Link>
                           <span aria-hidden="true">&gt;</span>
-                          <Link href={`/faculty/${faculty.userid}`}>
-                            {faculty.name}
-                          </Link>
+                          <Link href={`/faculty/${faculty.userid}`}>{faculty.name}</Link>
                           <span aria-hidden="true">&gt;</span>
                           <span>Course Preference</span>
                         </nav>
                       </section>
 
-                      {/* Page heading */}
                       <div className="cp-page-heading">
                         <div>
                           <h2 className="cp-page-title">Course Preference</h2>
@@ -277,96 +280,59 @@ export default function FacultyCoursePreferencePage() {
                         )}
                       </div>
 
-                      {/* Academic Year Selector */}
-                      <AcademicYearSelector
-                        years={allYears}
-                        selectedYear={selectedYear}
-                        onSelectYear={handleSelectYear}
-                        onCreateNewYear={handleCreateNewYear}
-                      />
-
-                      {/* ── Sections ──────────────────────────────────────────── */}
                       <div className="cp-sections-stack">
-
-                        {/* 1. Faculty Information */}
                         <FacultyInfoCard
                           faculty={faculty}
                           yearData={currentYearData}
                           isLocked={isCurrentYearLocked}
-                          onUpdateYearData={updateCurrentYearData}
                         />
 
-                        {/* 2. Semester Planning */}
-                        {(() => {
-                          const annualLoad = getComputedAnnualLoad(
-                            currentYearData.facultyType,
-                            currentYearData.roles
-                          );
-                          const sp = currentYearData.semesterPlan;
-                          const totalSlots =
-                            (sp.summer?.length ?? 0) +
-                            (sp.fall?.length ?? 0) +
-                            (sp.spring?.length ?? 0);
-                          const canAddSlot = !isCurrentYearLocked && totalSlots < annualLoad;
-                          const planWarnings = validateSemesterPlan(sp, annualLoad);
-                          return (
-                            <div className="cp-section-card">
-                              <div className="cp-section-header">
-                                <h3 className="cp-section-title">Semester Planning</h3>
-                                <div className="cp-section-header-right">
-                                  <span className="cp-annual-load-tag">
-                                    {totalSlots} / {annualLoad} slot{annualLoad !== 1 ? "s" : ""} planned
-                                  </span>
-                                  {isCurrentYearLocked && (
-                                    <span className="cp-locked-badge">Read-only</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="cp-section-body cp-semester-tables-body">
-                                {planWarnings.map((w, i) => (
-                                  <div
-                                    key={i}
-                                    className={`cp-validation-banner cp-validation-banner-${w.type}`}
-                                    role="alert"
-                                  >
-                                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
-                                      <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566ZM8 5a.905.905 0 0 1 .9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5Zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
-                                    </svg>
-                                    {w.message}
-                                  </div>
-                                ))}
-                                {["Summer", "Fall", "Spring"].map((sem) => (
-                                  <SemesterPlanningTable
-                                    key={sem}
-                                    semester={sem}
-                                    rows={sp[sem.toLowerCase()] ?? []}
-                                    isLocked={isCurrentYearLocked}
-                                    canAdd={canAddSlot}
-                                    onChange={(newRows) =>
-                                      updateSemesterPlan(sem.toLowerCase(), newRows)
-                                    }
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* 3. Course Preferences */}
-                        <CoursePreferenceSection
-                          preferences={currentYearData.coursePreferences}
-                          isLocked={isCurrentYearLocked}
-                          onChange={updateCoursePreferences}
-                        />
-
-                        {/* Save bar */}
-                        {!isCurrentYearLocked && (
-                          <div className="cp-save-bar">
+                        <div className="cp-tab-shell">
+                          <div className="cp-tab-list" role="tablist" aria-label="Course preference sections">
                             <button
                               type="button"
-                              className="cp-save-btn"
-                              onClick={handleSave}
+                              role="tab"
+                              aria-selected={activeTab === "semester"}
+                              className={`cp-tab-btn${activeTab === "semester" ? " is-active" : ""}`}
+                              onClick={() => setActiveTab("semester")}
                             >
+                              Semester Planning
+                            </button>
+                            <button
+                              type="button"
+                              role="tab"
+                              aria-selected={activeTab === "courses"}
+                              className={`cp-tab-btn${activeTab === "courses" ? " is-active" : ""}`}
+                              onClick={() => setActiveTab("courses")}
+                            >
+                              Course Preferences
+                            </button>
+                          </div>
+
+                          <div className="cp-tab-panel">
+                            <AcademicYearSelector
+                              years={allYears}
+                              selectedYear={selectedYear}
+                              onSelectYear={handleSelectYear}
+                            />
+
+                            {activeTab === "semester" ? (
+                              renderSemesterPlanning()
+                            ) : (
+                              <CoursePreferenceSection
+                                preferences={currentYearData.coursePreferences}
+                                isLocked={isCurrentYearLocked}
+                                onChange={updateCoursePreferences}
+                                onSave={handleSave}
+                                saveMessage={saveMessage}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {!isCurrentYearLocked && activeTab === "semester" && (
+                          <div className="cp-save-bar">
+                            <button type="button" className="cp-save-btn" onClick={handleSave}>
                               Save Preferences
                             </button>
                             {saveMessage.text && (
@@ -380,11 +346,8 @@ export default function FacultyCoursePreferencePage() {
                           </div>
                         )}
                       </div>
-                      {/* /cp-sections-stack */}
-
                     </div>
                   </div>
-                  {/* /faculty-detail-content */}
                 </div>
               </div>
             )}

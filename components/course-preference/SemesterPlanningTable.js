@@ -7,8 +7,7 @@ import {
 
 /**
  * Semester planning table.
- * Rows are pre-populated to match the faculty's semester load (maxSlots).
- * Faculty can remove rows and add them back, but cannot exceed maxSlots.
+ * Rows are pre-populated from the requested semester load.
  */
 export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd, onChange }) {
   function addRow() {
@@ -28,7 +27,6 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
       rows.map((r) => {
         if (r.id !== id) return r;
         const updated = { ...r, [field]: value };
-        // Reset comment when status changes
         if (field === "status") updated.comment = "";
         return updated;
       })
@@ -65,9 +63,7 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
 
       {rows.length === 0 ? (
         <p className="cp-semester-empty">
-          {isLocked
-            ? "No teaching slots recorded."
-            : "No slots added. Click \"+ Add Slot\" to begin."}
+          {isLocked ? "No teaching slots recorded." : "No slots requested for this semester."}
         </p>
       ) : (
         <div className="cp-planning-table-wrapper">
@@ -77,7 +73,7 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
                 <th className="cp-col-slot">Course</th>
                 <th className="cp-col-status">Status</th>
                 <th className="cp-col-comment">Comments / Reason</th>
-                {!isLocked && <th className="cp-col-action" aria-label="Actions" />}
+                {!isLocked && canAdd && <th className="cp-col-action" aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
@@ -110,7 +106,7 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
 
                     <td className="cp-col-comment">
                       {isLocked ? (
-                        <span className="cp-comment-text">{row.comment || "—"}</span>
+                        <span className="cp-comment-text">{row.comment || "-"}</span>
                       ) : (
                         <select
                           className="cp-select cp-comment-select"
@@ -118,7 +114,7 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
                           onChange={(e) => updateRow(row.id, "comment", e.target.value)}
                           aria-label={`Course ${index + 1} comment`}
                         >
-                          <option value="">— Select —</option>
+                          <option value="">- Select -</option>
                           {opts.map((opt) => (
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
@@ -126,7 +122,7 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
                       )}
                     </td>
 
-                    {!isLocked && (
+                    {!isLocked && canAdd && (
                       <td className="cp-col-action">
                         <button
                           type="button"
@@ -135,7 +131,7 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
                           aria-label={`Remove Course ${index + 1}`}
                           title="Remove slot"
                         >
-                          ✕
+                          x
                         </button>
                       </td>
                     )}

@@ -3,10 +3,9 @@
 
 // ── Faculty types ────────────────────────────────────────────────────────────
 export const DEFAULT_ANNUAL_LOAD = {
-  "Professor": 2,
-  "Associate Professor": 2,
-  "Assistant Professor": 2,
-  "Adjunct": 2,
+  "Lecture 10": 6,
+  "Lecture 12": 8,
+  "Prof Track": 2.5,
 };
 
 export const ALL_FACULTY_TYPES = Object.keys(DEFAULT_ANNUAL_LOAD);
@@ -15,20 +14,31 @@ export const ALL_FACULTY_TYPES = Object.keys(DEFAULT_ANNUAL_LOAD);
 // Chair → full release (0 courses), Associate Chair / Director → 1 course/year
 export const ALL_ROLES = ["Chair", "Associate Chair", "Director", "Other"];
 
+export const ROLE_ADJUSTMENTS_CONFIG = [
+  { role: "Chair", adjustment: "FULL_RELEASE" },
+  { role: "Associate Chair", adjustment: 1 },
+  { role: "Director", adjustment: 1 },
+];
+
 // ── Computed annual load (role overrides type default) ───────────────────────
 export function getComputedAnnualLoad(facultyType, roles = []) {
   if (roles.includes("Chair")) return 0;
-  if (roles.includes("Associate Chair") || roles.includes("Director")) return 1;
-  return DEFAULT_ANNUAL_LOAD[facultyType] ?? 2;
+  const defaultLoad = getDefaultLoad(facultyType);
+  const release = roles.reduce((total, role) => {
+    const adjustment = ROLE_ADJUSTMENTS_CONFIG.find((item) => item.role === role)?.adjustment;
+    return typeof adjustment === "number" ? total + adjustment : total;
+  }, 0);
+  return Math.max(0, defaultLoad - release);
 }
 
 // ── Default per-semester distribution from annual load ───────────────────────
 // Summer is always 0; fall gets the ceiling half, spring the floor half.
 export function getDefaultSemesterDistribution(annualLoad) {
+  const roundedLoad = Math.ceil(annualLoad);
   return {
     summer: 0,
-    fall: Math.ceil(annualLoad / 2),
-    spring: Math.floor(annualLoad / 2),
+    fall: Math.ceil(roundedLoad / 2),
+    spring: Math.floor(roundedLoad / 2),
   };
 }
 
@@ -44,6 +54,28 @@ export function buildDefaultSemesterPlan(requestedLoad) {
     summer: build(requestedLoad.summer ?? 0, "sum"),
     fall: build(requestedLoad.fall ?? 0, "fall"),
     spring: build(requestedLoad.spring ?? 0, "sp"),
+  };
+}
+
+export function resizeSemesterRows(rows = [], requestedCount = 0, prefix = "row") {
+  const count = Math.ceil(
+    Math.max(0, Math.min(MAX_LOAD_PER_SEMESTER, Number(requestedCount) || 0))
+  );
+  if (rows.length === count) return rows;
+  if (rows.length > count) return rows.slice(0, count);
+  const addedRows = Array.from({ length: count - rows.length }, () => ({
+    id: genId(prefix),
+    status: "Teaching",
+    comment: "",
+  }));
+  return [...rows, ...addedRows];
+}
+
+export function syncSemesterPlanToRequestedLoad(semesterPlan, requestedLoad) {
+  return {
+    summer: resizeSemesterRows(semesterPlan?.summer, requestedLoad?.summer, "sum"),
+    fall: resizeSemesterRows(semesterPlan?.fall, requestedLoad?.fall, "fall"),
+    spring: resizeSemesterRows(semesterPlan?.spring, requestedLoad?.spring, "sp"),
   };
 }
 
@@ -71,21 +103,22 @@ export const RANKING_LABELS = {
 
 // ── Cross-semester load validation ────────────────────────────────────────────
 export function validateSemesterPlan(semesterPlan, annualLoad) {
+  const expectedLoad = Math.ceil(annualLoad);
   const total =
     (semesterPlan.summer?.length ?? 0) +
     (semesterPlan.fall?.length ?? 0) +
     (semesterPlan.spring?.length ?? 0);
 
   const msgs = [];
-  if (total < annualLoad) {
+  if (total < expectedLoad) {
     msgs.push({
       type: "warning",
-      message: `You have planned ${total} course slot${total !== 1 ? "s" : ""} but your standard annual load is ${annualLoad}. Add more slots to complete your plan.`,
+      message: `You have planned ${total} course slot${total !== 1 ? "s" : ""} but your standard annual load rounds to ${expectedLoad}. Add more slots to complete your plan.`,
     });
-  } else if (total > annualLoad) {
+  } else if (total > expectedLoad) {
     msgs.push({
       type: "warning",
-      message: `You have planned ${total} course slots, which exceeds your standard annual load of ${annualLoad}.`,
+      message: `You have planned ${total} course slots, which exceeds your standard annual load of ${expectedLoad}.`,
     });
   }
   return msgs;
@@ -114,7 +147,7 @@ export function deepCopyYearData(data) {
 
 /** Returns a blank year data object. */
 export function createEmptyYearData() {
-  const defaultType = "Assistant Professor";
+  const defaultType = "Prof Track";
   const defaultRoles = [];
   const annualLoad = getComputedAnnualLoad(defaultType, defaultRoles);
   const requestedLoad = getDefaultSemesterDistribution(annualLoad);
@@ -139,10 +172,14 @@ export function getNextYearString(yearStr) {
 
 // ── Legacy helpers kept for backward compatibility ────────────────────────────
 export const MAX_LOAD_PER_SEMESTER = 3;
-export const SUMMER_COUNTS_TOWARD_LOAD = {};
+export const SUMMER_COUNTS_TOWARD_LOAD = {
+  "Lecture 10": false,
+  "Lecture 12": true,
+  "Prof Track": false,
+};
 
 export function getDefaultLoad(facultyType) {
-  return DEFAULT_ANNUAL_LOAD[facultyType] ?? 2;
+  return DEFAULT_ANNUAL_LOAD[facultyType] ?? DEFAULT_ANNUAL_LOAD["Prof Track"];
 }
 
 export function getRoleAdjustment(roles) {
@@ -154,4 +191,50 @@ export function getRoleAdjustment(roles) {
 export function getAdjustedLoad(defaultLoad, roleAdjustment) {
   if (roleAdjustment === "FULL_RELEASE") return 0;
   return Math.max(0, defaultLoad - roleAdjustment);
+}
+
+export function getTotalRequestedLoad(requestedLoad, facultyType) {
+  const countsSummer = SUMMER_COUNTS_TOWARD_LOAD[facultyType] ?? false;
+  return (
+    (countsSummer ? Number(requestedLoad?.summer ?? 0) : 0) +
+    Number(requestedLoad?.fall ?? 0) +
+    Number(requestedLoad?.spring ?? 0)
+  );
+}
+
+export function validateLoadInputs(requestedLoad, adjustedLoad, facultyType) {
+  const messages = [];
+  for (const field of ["summer", "fall", "spring"]) {
+    const value = Number(requestedLoad?.[field] ?? 0);
+    if (value < 0 || value > MAX_LOAD_PER_SEMESTER) {
+      messages.push({
+        field,
+        type: "error",
+        message: "Enter a value from 0 to 3.",
+      });
+    } else if ((value * 2) % 1 !== 0) {
+      messages.push({
+        field,
+        type: "error",
+        message: "Use half-course increments, such as 0, 0.5, 1, or 1.5.",
+      });
+    }
+  }
+
+  const total = getTotalRequestedLoad(requestedLoad, facultyType);
+  const expected = adjustedLoad;
+  if (total < expected) {
+    messages.push({
+      field: "total",
+      type: "warning",
+      message: `Requested teaching load is ${total}, below the expected ${expected}.`,
+    });
+  } else if (total > expected) {
+    messages.push({
+      field: "total",
+      type: "warning",
+      message: `Requested teaching load is ${total}, above the expected ${expected}.`,
+    });
+  }
+  return messages;
 }

@@ -6,6 +6,7 @@ import {
   validateLoadInputs,
   MAX_LOAD_PER_SEMESTER,
   SUMMER_COUNTS_TOWARD_LOAD,
+  syncSemesterPlanToRequestedLoad,
 } from "./coursePreferenceUtils";
 
 const SEMESTERS = [
@@ -34,12 +35,16 @@ export default function SemesterLoadSection({ yearData, isLocked, onUpdateYearDa
   const totalMsg = validationMsgs.find((m) => m.field === "total");
 
   function handleLoadChange(semKey, rawValue) {
-    const parsed = parseInt(rawValue, 10);
-    const value = isNaN(parsed) ? 0 : parsed;
-    onUpdateYearData((prev) => ({
-      ...prev,
-      requestedLoad: { ...prev.requestedLoad, [semKey]: value },
-    }));
+    const parsed = parseFloat(rawValue);
+    const value = Math.max(0, Math.min(MAX_LOAD_PER_SEMESTER, isNaN(parsed) ? 0 : parsed));
+    onUpdateYearData((prev) => {
+      const requestedLoad = { ...prev.requestedLoad, [semKey]: value };
+      return {
+        ...prev,
+        requestedLoad,
+        semesterPlan: syncSemesterPlanToRequestedLoad(prev.semesterPlan, requestedLoad),
+      };
+    });
   }
 
   return (
@@ -74,6 +79,7 @@ export default function SemesterLoadSection({ yearData, isLocked, onUpdateYearDa
                     className={`cp-sem-load-input${fieldMsg ? " cp-input-error" : ""}`}
                     min={0}
                     max={MAX_LOAD_PER_SEMESTER}
+                    step={0.5}
                     value={requestedLoad[key] ?? 0}
                     onChange={(e) => handleLoadChange(key, e.target.value)}
                     aria-describedby={fieldMsg ? `load-${key}-msg` : undefined}
