@@ -1306,6 +1306,42 @@ div.dt-button-background {
   font-size: 0.88rem;
 }
 
+/* ── Toolbar: legend + counts toggle ── */
+.committee-matrix-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
+.committee-counts-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid #c8d3de;
+  border-radius: 4px;
+  background: #f7f9fc;
+  color: #2d3748;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.committee-counts-toggle:hover {
+  background: #e8f0f8;
+  border-color: var(--ub-blue);
+  color: var(--ub-blue);
+}
+
+.committee-counts-toggle-icon {
+  font-size: 0.7rem;
+}
+
 /* ── Value legend ── */
 .committee-matrix-legend {
   display: flex;
@@ -1636,6 +1672,54 @@ div.dt-button-background {
 }
 
 .committee-matrix-input-number { -moz-appearance: textfield; }
+
+/* ── Collapsible count rows ── */
+.committee-matrix-tr-count td {
+  border-bottom: 1px solid #d5dbe3;
+}
+
+.committee-matrix-tr-count {
+  background: #eef3f9;
+}
+
+.committee-matrix-tr-count-static {
+  background: #e8eef6;
+}
+
+.committee-matrix-td-count-label {
+  font-style: italic;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #3a4a5c;
+  text-align: right;
+  padding-right: 12px;
+  background: #eef3f9;
+  white-space: nowrap;
+}
+
+.committee-matrix-tr-count-static .committee-matrix-td-count-label {
+  background: #e8eef6;
+}
+
+.committee-matrix-td-count-val {
+  text-align: center;
+  font-size: 0.82rem;
+  font-family: var(--font-body-strong);
+  font-weight: 600;
+  color: #1a2d47;
+  padding: 5px 2px;
+  vertical-align: middle;
+  border-right: 1px solid #d5dbe3;
+}
+
+.committee-matrix-td-count-empty {
+  border-right: 1px solid #d5dbe3;
+}
+
+/* Separator line under the last count row */
+.committee-matrix-tr-count:last-of-type td {
+  border-bottom: 2px solid #a0b4cc;
+}
 
 @media (max-width: 880px) {
   .portal-brand-lockup {

@@ -42,6 +42,15 @@ const SUMMARY_COLS = [
   { key: "comments",      label: "Comments",        editable: true,  type: "text"       },
 ];
 
+// Collapsible aggregate rows shown above the faculty list
+const COUNT_ROW_DEFS = [
+  { key: "chairs",        label: "# of Chairs",        static: false },
+  { key: "viceChairs",    label: "# of Vice Chairs",   static: false },
+  { key: "members",       label: "# of Members",       static: false },
+  { key: "category",      label: "Category",           static: true  },
+  { key: "servicePoints", label: "Service Points",     static: true  },
+];
+
 export default function FacultyCommitteePreferencePage() {
   const router = useRouter();
   const { userid } = router.query;
@@ -52,6 +61,7 @@ export default function FacultyCommitteePreferencePage() {
   const [memberships, setMemberships]     = useState({});
   const [extras, setExtras]               = useState({});
   const [submitMessage, setSubmitMessage] = useState("");
+  const [showCounts, setShowCounts]       = useState(false);
 
   useEffect(() => {
     const initial = {};
@@ -113,6 +123,26 @@ export default function FacultyCommitteePreferencePage() {
   function handleSubmit() {
     const total = Object.values(memberships).filter(Boolean).length;
     setSubmitMessage(`Saved ${total} assignment${total === 1 ? "" : "s"}.`);
+  }
+
+  // Per-column aggregate counts for the collapsible count rows
+  function colCount(committeeId, value) {
+    return records.filter((m) => getValue(m.userid, committeeId) === value).length;
+  }
+
+  function getCountRowVal(col, rowKey) {
+    if (col.type === "role") {
+      if (rowKey === "members")       { const n = colCount(col.id, "X"); return n > 0 ? n : ""; }
+      if (rowKey === "category")      return col.category ?? "";
+      if (rowKey === "servicePoints") return col.servicePoints ?? "";
+      return "";
+    }
+    if (rowKey === "chairs")          { const n = colCount(col.id, "C"); return n > 0 ? n : ""; }
+    if (rowKey === "viceChairs")      { const n = colCount(col.id, "V"); return n > 0 ? n : ""; }
+    if (rowKey === "members")         { const n = colCount(col.id, "M"); return n > 0 ? n : ""; }
+    if (rowKey === "category")        return col.category ?? "";
+    if (rowKey === "servicePoints")   return col.servicePoints ?? "";
+    return "";
   }
 
   return (
@@ -208,16 +238,29 @@ export default function FacultyCommitteePreferencePage() {
                         <div className="faculty-secondary-body">
                           <div className="faculty-secondary-section faculty-preference-section-inline">
 
-                            {/* ── Legend (committee columns only) ── */}
-                            <div className="committee-matrix-legend" aria-label="Role legend">
-                              {LEGEND_ITEMS.map((item) => (
-                                <span key={item.value} className="committee-matrix-legend-item">
-                                  <span className={`committee-matrix-legend-badge ${item.badgeClass}`}>
-                                    {item.value}
+                            {/* ── Toolbar: legend + counts toggle ── */}
+                            <div className="committee-matrix-toolbar">
+                              <div className="committee-matrix-legend" aria-label="Role legend">
+                                {LEGEND_ITEMS.map((item) => (
+                                  <span key={item.value} className="committee-matrix-legend-item">
+                                    <span className={`committee-matrix-legend-badge ${item.badgeClass}`}>
+                                      {item.value}
+                                    </span>
+                                    {item.label}
                                   </span>
-                                  {item.label}
+                                ))}
+                              </div>
+                              <button
+                                type="button"
+                                className="committee-counts-toggle"
+                                onClick={() => setShowCounts((c) => !c)}
+                                aria-expanded={showCounts}
+                              >
+                                <span className="committee-counts-toggle-icon" aria-hidden="true">
+                                  {showCounts ? "▼" : "▶"}
                                 </span>
-                              ))}
+                                {showCounts ? "Hide Column Counts" : "Show Column Counts"}
+                              </button>
                             </div>
 
                             {/* ── Matrix table ── */}
@@ -288,6 +331,32 @@ export default function FacultyCommitteePreferencePage() {
                                 </thead>
 
                                 <tbody>
+                                  {/* ── Collapsible count rows (hidden by default) ── */}
+                                  {showCounts && COUNT_ROW_DEFS.map((srow) => (
+                                    <tr
+                                      key={srow.key}
+                                      className={`committee-matrix-tr-count${srow.static ? " committee-matrix-tr-count-static" : ""}`}
+                                    >
+                                      <td className="committee-matrix-td-name committee-matrix-td-count-label">
+                                        {srow.label}
+                                      </td>
+                                      {roleCols.map((c) => (
+                                        <td key={c.id} className="committee-matrix-td-count-val">
+                                          {getCountRowVal(c, srow.key)}
+                                        </td>
+                                      ))}
+                                      {committeeCols.map((c) => (
+                                        <td key={c.id} className="committee-matrix-td-count-val">
+                                          {getCountRowVal(c, srow.key)}
+                                        </td>
+                                      ))}
+                                      {SUMMARY_COLS.map((col) => (
+                                        <td key={col.key} className="committee-matrix-td-count-empty" />
+                                      ))}
+                                    </tr>
+                                  ))}
+
+                                  {/* ── Faculty rows ── */}
                                   {records.map((member, rowIndex) => {
                                     const isEven = rowIndex % 2 === 1;
                                     return (
