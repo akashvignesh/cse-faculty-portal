@@ -85,15 +85,20 @@ export const SEMESTER_STATUS_OPTIONS = ["Teaching", "Not Teaching"];
 export const TEACHING_COMMENT_OPTIONS = ["Regular", "Biannual"];
 
 export const NOT_TEACHING_COMMENT_OPTIONS = [
+  "Sabbatical – Year (SY)",
+  "Sabbatical – Semester (SS)",
+  "Leave without Pay (LWOP)",
+  "Paid Leave (PL)",
   "Deferred or Taught Biannual",
   "Course Buyout",
   "Course Release",
 ];
 
 // ── Course preference ranking ─────────────────────────────────────────────────
-export const RANKING_OPTIONS = [1, 2, 3, 4, 5];
+export const RANKING_OPTIONS = [0, 1, 2, 3, 4, 5];
 
 export const RANKING_LABELS = {
+  0: "Not Qualified (NQ)",
   1: "1 – Least Preferred",
   2: "2",
   3: "3",

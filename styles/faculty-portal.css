@@ -2173,6 +2173,16 @@ div.dt-button-background {
   color: #ffffff;
 }
 
+.cp-pref-view-tab-nq.is-active {
+  background: var(--ub-blue);
+  color: #ffffff;
+}
+
+.cp-pref-view-tab-nq.is-active span {
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ub-blue);
+}
+
 .cp-pref-view-tab:focus-visible {
   outline: 2px solid var(--ub-blue);
   outline-offset: -2px;
@@ -2238,6 +2248,7 @@ div.dt-button-background {
 }
 
 /* Rank header columns — same background as the rest of the header row */
+.cp-pref-grid-rank-hd-0 { background: var(--ub-blue); }
 .cp-pref-grid-rank-hd-1,
 .cp-pref-grid-rank-hd-2,
 .cp-pref-grid-rank-hd-3,
@@ -2347,6 +2358,13 @@ td.cp-pref-grid-rank-cell-active { background: inherit; }
 }
 
 /* Filled / selected dot */
+.cp-pref-dot-filled.cp-pref-dot-0 {
+  background: var(--ub-blue);
+  border: 2px solid var(--ub-blue);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
 .cp-pref-dot-filled.cp-pref-dot-1,
 .cp-pref-dot-filled.cp-pref-dot-2,
 .cp-pref-dot-filled.cp-pref-dot-3,

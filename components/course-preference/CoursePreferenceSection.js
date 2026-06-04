@@ -32,21 +32,25 @@ export default function CoursePreferenceSection({
         const pref = prefLookup[course.courseName];
         return {
           course,
-          currentRank: pref?.ranking ?? null,
+          currentRank: pref ? pref.ranking : null,
           code: deriveCourseCode(course),
         };
       }),
     [prefLookup]
   );
-  const selectedRows = courseRows.filter((row) => row.currentRank);
+  const selectedRows = courseRows.filter((row) => row.currentRank !== null && row.currentRank > 0);
+  const notQualifiedRows = courseRows.filter((row) => row.currentRank === 0);
   const visibleRows =
     activeView === "selected"
       ? selectedRows
+      : activeView === "not-qualified"
+      ? notQualifiedRows
       : courseRows.filter(
-          (row) => !row.currentRank || retainedNotSelectedSet.has(row.course.courseName)
+          (row) => row.currentRank === null || retainedNotSelectedSet.has(row.course.courseName)
         );
-  const rankedCount = preferences.length;
-  const notSelectedCount = courseCatalogMockData.length - rankedCount;
+  const selectedCount = selectedRows.length;
+  const notQualifiedCount = notQualifiedRows.length;
+  const notSelectedCount = courseCatalogMockData.length - preferences.length;
 
   function handleRankClick(course, rank) {
     const existing = prefLookup[course.courseName];
@@ -79,6 +83,13 @@ export default function CoursePreferenceSection({
     }
   }
 
+  function nqLabel(n) {
+    if (n === 0) return "NQ";
+    if (n === 1) return "Least";
+    if (n === 5) return "Most";
+    return null;
+  }
+
   return (
     <div className="cp-section-card">
       <div className="cp-section-header">
@@ -94,12 +105,22 @@ export default function CoursePreferenceSection({
             <button
               type="button"
               role="tab"
+              aria-selected={activeView === "not-qualified"}
+              className={`cp-pref-view-tab cp-pref-view-tab-nq${activeView === "not-qualified" ? " is-active" : ""}`}
+              onClick={() => setActiveView("not-qualified")}
+            >
+              Not Qualified
+              <span>{notQualifiedCount}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={activeView === "selected"}
               className={`cp-pref-view-tab${activeView === "selected" ? " is-active" : ""}`}
               onClick={() => setActiveView("selected")}
             >
               Selected
-              <span>{rankedCount}</span>
+              <span>{selectedCount}</span>
             </button>
             <button
               type="button"
@@ -136,16 +157,18 @@ export default function CoursePreferenceSection({
               <tr>
                 <th className="cp-pref-grid-th cp-pref-grid-col-code">Code</th>
                 <th className="cp-pref-grid-th cp-pref-grid-col-name">Course Name</th>
-                {RANKING_OPTIONS.map((n) => (
-                  <th
-                    key={n}
-                    className={`cp-pref-grid-th cp-pref-grid-col-rank cp-pref-grid-rank-hd-${n}`}
-                  >
-                    <span className="cp-pref-rank-hd-num">{n}</span>
-                    {n === 1 && <span className="cp-pref-rank-hd-label">Least</span>}
-                    {n === 5 && <span className="cp-pref-rank-hd-label">Most</span>}
-                  </th>
-                ))}
+                {RANKING_OPTIONS.map((n) => {
+                  const label = nqLabel(n);
+                  return (
+                    <th
+                      key={n}
+                      className={`cp-pref-grid-th cp-pref-grid-col-rank cp-pref-grid-rank-hd-${n}`}
+                    >
+                      <span className="cp-pref-rank-hd-num">{n === 0 ? "0" : n}</span>
+                      {label && <span className="cp-pref-rank-hd-label">{label}</span>}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -164,6 +187,7 @@ export default function CoursePreferenceSection({
                   </td>
                   {RANKING_OPTIONS.map((n) => {
                     const isSelected = currentRank === n;
+                    const displayLabel = n === 0 ? "NQ" : n;
                     return (
                       <td
                         key={n}
@@ -172,9 +196,9 @@ export default function CoursePreferenceSection({
                         {isLocked ? (
                           <span
                             className={`cp-pref-dot${isSelected ? ` cp-pref-dot-filled cp-pref-dot-${n}` : " cp-pref-dot-empty"}`}
-                            aria-label={isSelected ? `Ranked ${n}` : ""}
+                            aria-label={isSelected ? RANKING_LABELS[n] : ""}
                           >
-                            {isSelected ? n : ""}
+                            {isSelected ? displayLabel : ""}
                           </span>
                         ) : (
                           <button
@@ -182,10 +206,10 @@ export default function CoursePreferenceSection({
                             className={`cp-pref-dot cp-pref-dot-btn${isSelected ? ` cp-pref-dot-filled cp-pref-dot-${n}` : " cp-pref-dot-empty"}`}
                             onClick={() => handleRankClick(course, n)}
                             aria-pressed={isSelected}
-                            aria-label={`${course.subject} ${course.courseName}: rank ${n}${isSelected ? " (click to clear)" : ""}`}
+                            aria-label={`${course.subject} ${course.courseName}: ${RANKING_LABELS[n]}${isSelected ? " (click to clear)" : ""}`}
                             title={isSelected ? `${RANKING_LABELS[n]} - click to clear` : RANKING_LABELS[n]}
                           >
-                            {isSelected ? n : ""}
+                            {isSelected ? displayLabel : ""}
                           </button>
                         )}
                       </td>
@@ -199,7 +223,9 @@ export default function CoursePreferenceSection({
             <div className="cp-pref-empty" role="status">
               {activeView === "selected"
                 ? "No courses have been selected yet."
-                : "All catalog courses have a selected preference."}
+                : activeView === "not-qualified"
+                ? "No courses marked as Not Qualified."
+                : "All catalog courses have a preference set."}
             </div>
           )}
         </div>
