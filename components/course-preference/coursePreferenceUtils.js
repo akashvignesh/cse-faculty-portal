@@ -175,6 +175,73 @@ export function getNextYearString(yearStr) {
   return `${start + 1}-${end + 1}`;
 }
 
+// ── Biannual carry-forward ────────────────────────────────────────────────────
+// Only applies to Fall and Spring slots (not Summer).
+//
+// Two-way alternating trigger:
+//   "Not Teaching + Deferred or Taught Biannual" in year N
+//     → auto-creates "Teaching + Biannual" in year N+1
+//   "Teaching + Biannual" in year N+1
+//     → auto-creates "Not Teaching + Deferred or Taught Biannual" in year N+2
+//
+// This self-sustaining chain produces the every-other-year rhythm indefinitely.
+
+export function getBiannualCarryInSlots(prevYearData) {
+  const carryIn = { fall: [], spring: [] };
+
+  for (const semester of ["fall", "spring"]) {
+    const prevSlots = prevYearData?.semesterPlan?.[semester] ?? [];
+
+    // Deferred slots → next year becomes the teaching year
+    const deferredCount = prevSlots.filter(
+      (s) => s.status === "Not Teaching" && s.comment === "Deferred or Taught Biannual"
+    ).length;
+
+    // Teaching biannual slots → next year becomes the skip (deferred) year
+    const teachingBiannualCount = prevSlots.filter(
+      (s) => s.status === "Teaching" && s.comment === "Biannual"
+    ).length;
+
+    const prefix = semester === "fall" ? "fall" : "sp";
+    carryIn[semester] = [
+      ...Array.from({ length: deferredCount }, () => ({
+        id: genId(prefix),
+        status: "Teaching",
+        comment: "Biannual",
+      })),
+      ...Array.from({ length: teachingBiannualCount }, () => ({
+        id: genId(prefix),
+        status: "Not Teaching",
+        comment: "Deferred or Taught Biannual",
+      })),
+    ];
+  }
+
+  return carryIn;
+}
+
+// Injects carry-in slots into a year's Fall/Spring plan.
+// Existing biannual slots (either kind) are replaced to avoid duplicates.
+export function applyBiannualCarryIn(yearData, carryInSlots) {
+  const plan = yearData?.semesterPlan ?? { summer: [], fall: [], spring: [] };
+  const isBiannualSlot = (s) =>
+    s.comment === "Biannual" || s.comment === "Deferred or Taught Biannual";
+  return {
+    ...yearData,
+    semesterPlan: {
+      ...plan,
+      fall: [
+        ...(carryInSlots.fall ?? []),
+        ...(plan.fall ?? []).filter((s) => !isBiannualSlot(s)),
+      ],
+      spring: [
+        ...(carryInSlots.spring ?? []),
+        ...(plan.spring ?? []).filter((s) => !isBiannualSlot(s)),
+      ],
+    },
+  };
+}
+
 // ── Legacy helpers kept for backward compatibility ────────────────────────────
 export const MAX_LOAD_PER_SEMESTER = 3;
 export const SUMMER_COUNTS_TOWARD_LOAD = {

@@ -13,6 +13,8 @@ import {
   createEmptyYearData,
   getComputedAnnualLoad,
   validateSemesterPlan,
+  getBiannualCarryInSlots,
+  applyBiannualCarryIn,
 } from "../../../components/course-preference/coursePreferenceUtils";
 import {
   INITIAL_ACADEMIC_YEARS,
@@ -109,11 +111,21 @@ export default function FacultyCoursePreferencePage() {
       return;
     }
 
-    const empty = {};
-    for (const yr of INITIAL_ACADEMIC_YEARS) {
-      empty[yr.year] = createEmptyYearData();
+    // No existing data: build empty year map and seed biannual carry-forward
+    // between consecutive years so the alternating pattern works from day one.
+    const map = {};
+    for (let i = 0; i < INITIAL_ACADEMIC_YEARS.length; i++) {
+      const yr = INITIAL_ACADEMIC_YEARS[i];
+      const prevYr = i > 0 ? INITIAL_ACADEMIC_YEARS[i - 1].year : null;
+      const base = createEmptyYearData();
+      if (prevYr) {
+        const carryIn = getBiannualCarryInSlots(map[prevYr]);
+        map[yr.year] = applyBiannualCarryIn(base, carryIn);
+      } else {
+        map[yr.year] = base;
+      }
     }
-    setYearDataMap(empty);
+    setYearDataMap(map);
   }, [faculty]);
 
   const isCurrentYearLocked = useMemo(

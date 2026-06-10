@@ -16,7 +16,9 @@ function pref(id, courseCode, courseName, ranking) {
   return { id, courseCode, courseName, ranking };
 }
 
-function profTrackYear(prefix, roles = [], prefs = []) {
+// biannualDeferred=true  → biannual slot is "Not Teaching + Deferred or Taught Biannual" (skip year)
+// biannualDeferred=false → biannual slot is "Teaching + Biannual" (on year, carries to next as skip)
+function profTrackYear(prefix, roles = [], prefs = [], biannualDeferred = false) {
   const released = roles.includes("Chair");
   return {
     facultyType: "Prof Track",
@@ -28,7 +30,9 @@ function profTrackYear(prefix, roles = [], prefs = []) {
           summer: [],
           fall: [
             slot(`${prefix}-f1`, "Teaching", "Regular"),
-            slot(`${prefix}-f2`, "Teaching", "Biannual"),
+            biannualDeferred
+              ? slot(`${prefix}-f2`, "Not Teaching", "Deferred or Taught Biannual")
+              : slot(`${prefix}-f2`, "Teaching", "Biannual"),
           ],
           spring: [slot(`${prefix}-s1`, "Teaching", "Regular")],
         },
@@ -36,7 +40,9 @@ function profTrackYear(prefix, roles = [], prefs = []) {
   };
 }
 
-function lecture10Year(prefix, prefs = []) {
+// biannualDeferred=true  → biannual slots are "Not Teaching + Deferred or Taught Biannual" (skip year)
+// biannualDeferred=false → biannual slots are "Teaching + Biannual" (on year)
+function lecture10Year(prefix, prefs = [], biannualDeferred = false) {
   return {
     facultyType: "Lecture 10",
     roles: [],
@@ -46,12 +52,16 @@ function lecture10Year(prefix, prefs = []) {
       fall: [
         slot(`${prefix}-f1`, "Teaching", "Regular"),
         slot(`${prefix}-f2`, "Teaching", "Regular"),
-        slot(`${prefix}-f3`, "Teaching", "Biannual"),
+        biannualDeferred
+          ? slot(`${prefix}-f3`, "Not Teaching", "Deferred or Taught Biannual")
+          : slot(`${prefix}-f3`, "Teaching", "Biannual"),
       ],
       spring: [
         slot(`${prefix}-s1`, "Teaching", "Regular"),
         slot(`${prefix}-s2`, "Teaching", "Regular"),
-        slot(`${prefix}-s3`, "Teaching", "Biannual"),
+        biannualDeferred
+          ? slot(`${prefix}-s3`, "Not Teaching", "Deferred or Taught Biannual")
+          : slot(`${prefix}-s3`, "Teaching", "Biannual"),
       ],
     },
     coursePreferences: prefs,
@@ -91,37 +101,46 @@ export const FACULTY_YEAR_DATA = {
     "2023-2024": profTrackYear("js-23", [], [
       pref("js-23-cp1", "CSE521", "Operating Systems", 5),
     ]),
-    "2022-2023": profTrackYear("js-22"),
+    // 2022-2023 is the skip (deferred) year so 2023-2024 gets Teaching + Biannual
+    "2022-2023": profTrackYear("js-22", [], [], true),
   },
 
   abrown: {
+    // 2025-2026: on year — Teaching + Biannual carried in from 2024-2025 Deferred
     "2025-2026": lecture10Year("ab-25", [
       pref("ab-cp1", "CSE115", "115LLB-Introduction to Computer Science I", 5),
       pref("ab-cp2", "CSE116", "116LLB-Introduction to Computer Science II", 5),
       pref("ab-cp3", "CSE331", "331LR-Algorithms and Complexity", 4),
       pref("ab-cp4", "CSE431", "431LEC-Algorithms Analysis and Design", 4),
       pref("ab-cp5", "CSE250", "250LR-Data Structures", 3),
-    ]),
+    ], false),
+    // 2024-2025: skip year — Deferred carries forward to 2025-2026 as Teaching
     "2024-2025": lecture10Year("ab-24", [
       pref("ab-24-cp1", "CSE331", "331LR-Algorithms and Complexity", 5),
       pref("ab-24-cp2", "CSE431", "431LEC-Algorithms Analysis and Design", 4),
-    ]),
-    "2023-2024": lecture10Year("ab-23"),
-    "2022-2023": lecture10Year("ab-22"),
+    ], true),
+    // 2023-2024: on year
+    "2023-2024": lecture10Year("ab-23", [], false),
+    // 2022-2023: skip year
+    "2022-2023": lecture10Year("ab-22", [], true),
   },
 
   rlee: {
+    // 2025-2026: on year — Teaching + Biannual carried in from 2024-2025 Deferred
     "2025-2026": profTrackYear("rl-25", [], [
       pref("rl-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
       pref("rl-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
       pref("rl-cp3", "CSE368", "368LR-Introduction to Artificial Intelligence", 4),
       pref("rl-cp4", "CSE440", "440LEC-Machine Learning and Society for Majors", 3),
-    ]),
+    ], false),
+    // 2024-2025: skip year — Deferred carries forward to 2025-2026 as Teaching
     "2024-2025": profTrackYear("rl-24", [], [
       pref("rl-24-cp1", "CSE474", "Introduction to Machine Learning", 5),
-    ]),
-    "2023-2024": profTrackYear("rl-23"),
-    "2022-2023": profTrackYear("rl-22"),
+    ], true),
+    // 2023-2024: on year
+    "2023-2024": profTrackYear("rl-23", [], [], false),
+    // 2022-2023: skip year
+    "2022-2023": profTrackYear("rl-22", [], [], true),
   },
 
   roshana: {
@@ -133,8 +152,9 @@ export const FACULTY_YEAR_DATA = {
     "2024-2025": profTrackYear("ra-24", ["Chair"], [
       pref("ra-24-cp1", "CSE474", "Introduction to Machine Learning", 5),
     ]),
-    "2023-2024": profTrackYear("ra-23"),
-    "2022-2023": profTrackYear("ra-22"),
+    // Pre-chair years follow the same alternating pattern
+    "2023-2024": profTrackYear("ra-23", [], [], false),
+    "2022-2023": profTrackYear("ra-22", [], [], true),
   },
 };
 
