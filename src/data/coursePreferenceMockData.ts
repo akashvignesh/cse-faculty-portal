@@ -1,24 +1,46 @@
 // Mock data for the redesigned Course Preference feature.
 // This is frontend-only mock state; no backend persistence.
 
-export const INITIAL_ACADEMIC_YEARS = [
+import type {
+  PlannerCoursePreference,
+  SemesterSlot,
+  SlotStatus,
+  YearData,
+} from "../types/faculty";
+
+export interface AcademicYearOption {
+  year: string;
+  locked: boolean;
+}
+
+export const INITIAL_ACADEMIC_YEARS: AcademicYearOption[] = [
   { year: "2022-2023", locked: true },
   { year: "2023-2024", locked: true },
   { year: "2024-2025", locked: true },
   { year: "2025-2026", locked: false },
 ];
 
-function slot(id, status, comment) {
+function slot(id: string, status: SlotStatus, comment: string): SemesterSlot {
   return { id, status, comment };
 }
 
-function pref(id, courseCode, courseName, ranking) {
+function pref(
+  id: string,
+  courseCode: string,
+  courseName: string,
+  ranking: number
+): PlannerCoursePreference {
   return { id, courseCode, courseName, ranking };
 }
 
 // biannualDeferred=true  → biannual slot is "Not Teaching + Deferred or Taught Biannual" (skip year)
 // biannualDeferred=false → biannual slot is "Teaching + Biannual" (on year, carries to next as skip)
-function profTrackYear(prefix, roles = [], prefs = [], biannualDeferred = false) {
+function profTrackYear(
+  prefix: string,
+  roles: string[] = [],
+  prefs: PlannerCoursePreference[] = [],
+  biannualDeferred = false
+): YearData {
   const released = roles.includes("Chair");
   return {
     facultyType: "Prof Track",
@@ -42,7 +64,11 @@ function profTrackYear(prefix, roles = [], prefs = [], biannualDeferred = false)
 
 // biannualDeferred=true  → biannual slots are "Not Teaching + Deferred or Taught Biannual" (skip year)
 // biannualDeferred=false → biannual slots are "Teaching + Biannual" (on year)
-function lecture10Year(prefix, prefs = [], biannualDeferred = false) {
+function lecture10Year(
+  prefix: string,
+  prefs: PlannerCoursePreference[] = [],
+  biannualDeferred = false
+): YearData {
   return {
     facultyType: "Lecture 10",
     roles: [],
@@ -68,7 +94,7 @@ function lecture10Year(prefix, prefs = [], biannualDeferred = false) {
   };
 }
 
-export const FACULTY_YEAR_DATA = {
+export const FACULTY_YEAR_DATA: Record<string, Record<string, YearData>> = {
   jsmith: {
     "2025-2026": {
       facultyType: "Prof Track",
@@ -107,18 +133,26 @@ export const FACULTY_YEAR_DATA = {
 
   abrown: {
     // 2025-2026: on year — Teaching + Biannual carried in from 2024-2025 Deferred
-    "2025-2026": lecture10Year("ab-25", [
-      pref("ab-cp1", "CSE115", "115LLB-Introduction to Computer Science I", 5),
-      pref("ab-cp2", "CSE116", "116LLB-Introduction to Computer Science II", 5),
-      pref("ab-cp3", "CSE331", "331LR-Algorithms and Complexity", 4),
-      pref("ab-cp4", "CSE431", "431LEC-Algorithms Analysis and Design", 4),
-      pref("ab-cp5", "CSE250", "250LR-Data Structures", 3),
-    ], false),
+    "2025-2026": lecture10Year(
+      "ab-25",
+      [
+        pref("ab-cp1", "CSE115", "115LLB-Introduction to Computer Science I", 5),
+        pref("ab-cp2", "CSE116", "116LLB-Introduction to Computer Science II", 5),
+        pref("ab-cp3", "CSE331", "331LR-Algorithms and Complexity", 4),
+        pref("ab-cp4", "CSE431", "431LEC-Algorithms Analysis and Design", 4),
+        pref("ab-cp5", "CSE250", "250LR-Data Structures", 3),
+      ],
+      false
+    ),
     // 2024-2025: skip year — Deferred carries forward to 2025-2026 as Teaching
-    "2024-2025": lecture10Year("ab-24", [
-      pref("ab-24-cp1", "CSE331", "331LR-Algorithms and Complexity", 5),
-      pref("ab-24-cp2", "CSE431", "431LEC-Algorithms Analysis and Design", 4),
-    ], true),
+    "2024-2025": lecture10Year(
+      "ab-24",
+      [
+        pref("ab-24-cp1", "CSE331", "331LR-Algorithms and Complexity", 5),
+        pref("ab-24-cp2", "CSE431", "431LEC-Algorithms Analysis and Design", 4),
+      ],
+      true
+    ),
     // 2023-2024: on year
     "2023-2024": lecture10Year("ab-23", [], false),
     // 2022-2023: skip year
@@ -127,16 +161,24 @@ export const FACULTY_YEAR_DATA = {
 
   rlee: {
     // 2025-2026: on year — Teaching + Biannual carried in from 2024-2025 Deferred
-    "2025-2026": profTrackYear("rl-25", [], [
-      pref("rl-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
-      pref("rl-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
-      pref("rl-cp3", "CSE368", "368LR-Introduction to Artificial Intelligence", 4),
-      pref("rl-cp4", "CSE440", "440LEC-Machine Learning and Society for Majors", 3),
-    ], false),
+    "2025-2026": profTrackYear(
+      "rl-25",
+      [],
+      [
+        pref("rl-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
+        pref("rl-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
+        pref("rl-cp3", "CSE368", "368LR-Introduction to Artificial Intelligence", 4),
+        pref("rl-cp4", "CSE440", "440LEC-Machine Learning and Society for Majors", 3),
+      ],
+      false
+    ),
     // 2024-2025: skip year — Deferred carries forward to 2025-2026 as Teaching
-    "2024-2025": profTrackYear("rl-24", [], [
-      pref("rl-24-cp1", "CSE474", "Introduction to Machine Learning", 5),
-    ], true),
+    "2024-2025": profTrackYear(
+      "rl-24",
+      [],
+      [pref("rl-24-cp1", "CSE474", "Introduction to Machine Learning", 5)],
+      true
+    ),
     // 2023-2024: on year
     "2023-2024": profTrackYear("rl-23", [], [], false),
     // 2022-2023: skip year
@@ -158,6 +200,8 @@ export const FACULTY_YEAR_DATA = {
   },
 };
 
-export function getInitialYearDataForFaculty(userid) {
+export function getInitialYearDataForFaculty(
+  userid: string
+): Record<string, YearData> | null {
   return FACULTY_YEAR_DATA[userid] ?? null;
 }

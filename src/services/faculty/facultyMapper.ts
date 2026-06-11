@@ -1,18 +1,43 @@
-function normalizeField(value) {
+// Normalization boundary between raw API/mock payloads and the typed `Faculty`
+// domain model. Raw records arrive in both camelCase and snake_case variants,
+// so every accessor tolerates either spelling.
+
+import type {
+  AwardItem,
+  CommitteeItem,
+  CoursePreference,
+  Faculty,
+  LeaveItem,
+  RawFacultyRecord,
+  StudentItem,
+  TeachingHistory,
+  TeachingHistoryItem,
+  TeachingReductionItem,
+  TermKey,
+} from "../../types/faculty";
+
+function normalizeField(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeArray(value) {
+function normalizeArray(value: unknown): RawFacultyRecord[] {
   return Array.isArray(value) ? value : [];
 }
 
-function normalizeStringArray(value) {
-  return normalizeArray(value)
-    .map(normalizeField)
-    .filter(Boolean);
+function normalizeStringArray(value: unknown): string[] {
+  return (Array.isArray(value) ? value : []).map(normalizeField).filter(Boolean);
 }
 
-function formatOfficeAddress(address) {
+interface RawOfficeAddress {
+  line1?: unknown;
+  line2?: unknown;
+  city?: unknown;
+  state?: unknown;
+  postalCode?: unknown;
+  country?: unknown;
+}
+
+function formatOfficeAddress(address: RawOfficeAddress | string | null | undefined): string {
   if (!address || typeof address === "string") {
     return normalizeField(address);
   }
@@ -25,7 +50,7 @@ function formatOfficeAddress(address) {
   ]).join(", ");
 }
 
-function formatOfficeAddressLines(address) {
+function formatOfficeAddressLines(address: RawOfficeAddress | string | null | undefined): string[] {
   if (!address || typeof address === "string") {
     const normalizedAddress = normalizeField(address);
     return normalizedAddress ? [normalizedAddress] : [];
@@ -39,7 +64,7 @@ function formatOfficeAddressLines(address) {
   ]);
 }
 
-function deriveUserid(record) {
+function deriveUserid(record: RawFacultyRecord): string {
   const explicitUserid = normalizeField(record?.userid ?? record?.userId ?? record?.user_id);
 
   if (explicitUserid) {
@@ -54,28 +79,31 @@ function deriveUserid(record) {
     return "";
   }
 
-  return email.split("@")[0];
+  return email.split("@")[0] ?? "";
 }
 
-function pickOfficeAddress(record) {
+function pickOfficeAddress(record: RawFacultyRecord): string {
   return normalizeField(
     record?.officeAddress ?? record?.office_address ?? record?.office ?? record?.address
   );
 }
 
-function mapCoursePreference(preference, index) {
+function mapCoursePreference(preference: RawFacultyRecord, index: number): CoursePreference {
   const coursePreference = normalizeField(preference?.coursePref ?? preference?.course_pref);
 
   return {
     teachingPreferenceId: normalizeField(
       preference?.teachingPreferenceId ??
-      preference?.teaching_preference_id ??
-      preference?.id ??
-      String(index + 1)
+        preference?.teaching_preference_id ??
+        preference?.id ??
+        String(index + 1)
     ),
     termCode: normalizeField(preference?.termCode ?? preference?.term_code),
     courseCode: normalizeField(
-      preference?.courseCode ?? preference?.course_code ?? preference?.courseId ?? preference?.course_id
+      preference?.courseCode ??
+        preference?.course_code ??
+        preference?.courseId ??
+        preference?.course_id
     ),
     preferredCourseName: normalizeField(
       preference?.preferredCourseName ??
@@ -87,7 +115,7 @@ function mapCoursePreference(preference, index) {
   };
 }
 
-function mapLeaveItem(leave, index) {
+function mapLeaveItem(leave: RawFacultyRecord, index: number): LeaveItem {
   return {
     leaveId: normalizeField(leave?.leaveId ?? leave?.leave_id ?? `L-${index + 1}`),
     leaveType: normalizeField(leave?.leaveType ?? leave?.leave_type),
@@ -101,7 +129,10 @@ function mapLeaveItem(leave, index) {
   };
 }
 
-function mapTeachingReductionItem(reduction, index) {
+function mapTeachingReductionItem(
+  reduction: RawFacultyRecord,
+  index: number
+): TeachingReductionItem {
   return {
     teachingReductionId: normalizeField(
       reduction?.teachingReductionId ?? reduction?.teaching_reduction_id ?? `TR-${index + 1}`
@@ -117,7 +148,7 @@ function mapTeachingReductionItem(reduction, index) {
   };
 }
 
-function mapCommitteeItem(committee, index) {
+function mapCommitteeItem(committee: RawFacultyRecord, index: number): CommitteeItem {
   return {
     committeeId: normalizeField(
       committee?.committeeId ?? committee?.committee_id ?? `C-${index + 1}`
@@ -128,7 +159,7 @@ function mapCommitteeItem(committee, index) {
   };
 }
 
-function mapAwardItem(award, index) {
+function mapAwardItem(award: RawFacultyRecord, index: number): AwardItem {
   return {
     awardId: normalizeField(award?.awardId ?? award?.award_id ?? `A-${index + 1}`),
     awardName: normalizeField(award?.awardName ?? award?.award_name),
@@ -137,7 +168,7 @@ function mapAwardItem(award, index) {
   };
 }
 
-function mapStudentItem(student, index) {
+function mapStudentItem(student: RawFacultyRecord, index: number): StudentItem {
   return {
     studentId: normalizeField(
       student?.studentId ?? student?.student_id ?? student?.studentPersonNumber ?? `S-${index + 1}`
@@ -150,7 +181,7 @@ function mapStudentItem(student, index) {
   };
 }
 
-function pickTeachingHistoryPayload(record) {
+function pickTeachingHistoryPayload(record: RawFacultyRecord): RawFacultyRecord | undefined {
   return (
     record?.teachingHistory ??
     record?.teaching_history ??
@@ -159,7 +190,12 @@ function pickTeachingHistoryPayload(record) {
   );
 }
 
-function mapTeachingHistoryItem(course, year, term, index) {
+function mapTeachingHistoryItem(
+  course: RawFacultyRecord,
+  year: unknown,
+  term: TermKey,
+  index: number
+): TeachingHistoryItem {
   return {
     teachingHistoryId: normalizeField(
       course?.teachingHistoryId ??
@@ -176,15 +212,16 @@ function mapTeachingHistoryItem(course, year, term, index) {
   };
 }
 
-function mapTeachingHistory(record) {
+const TERM_KEYS: TermKey[] = ["spring", "summer", "fall"];
+
+function mapTeachingHistory(record: RawFacultyRecord): TeachingHistory {
   const historyPayload = pickTeachingHistoryPayload(record);
   const data = historyPayload?.data ?? historyPayload ?? {};
   const years = normalizeArray(data?.years);
-  const termKeys = ["spring", "summer", "fall"];
-  const rows = [];
+  const rows: TeachingHistoryItem[] = [];
 
   years.forEach((yearEntry) => {
-    termKeys.forEach((term) => {
+    TERM_KEYS.forEach((term) => {
       normalizeArray(yearEntry?.[term]).forEach((course, index) => {
         rows.push(mapTeachingHistoryItem(course, yearEntry?.year, term, index));
       });
@@ -204,10 +241,10 @@ function mapTeachingHistory(record) {
   };
 }
 
-export function mapFacultyRecord(record, index) {
+export function mapFacultyRecord(record: RawFacultyRecord, index: number): Faculty {
   const contactOfficeAddress = record?.contact?.officeAddress;
   const contactEmail = normalizeField(record?.contact?.email);
-  const mappedRecord = {
+  const mappedRecord: Faculty = {
     name: normalizeField(record?.name ?? record?.fullName),
     userid: deriveUserid(record),
     officeAddress: normalizeField(
@@ -215,9 +252,7 @@ export function mapFacultyRecord(record, index) {
     ),
     personNumber: normalizeField(record?.personNumber ?? record?.person_number),
     standardLoad: normalizeField(record?.standardLoad ?? record?.standard_load),
-    nextPromotionDate: normalizeField(
-      record?.nextPromotionDate ?? record?.next_promotion_date
-    ),
+    nextPromotionDate: normalizeField(record?.nextPromotionDate ?? record?.next_promotion_date),
     backupFacultyPersonNumber: normalizeField(
       record?.backupFacultyPersonNumber ?? record?.backup_faculty_person_number
     ),
@@ -244,17 +279,23 @@ export function mapFacultyRecord(record, index) {
       record?.primaryAppointment ?? record?.primary_appointment ?? record?.rank
     ),
     researchTopics: normalizeStringArray(
-      record?.researchTopics ?? record?.research_topics ?? record?.researchAreas ?? record?.research_areas
+      record?.researchTopics ??
+        record?.research_topics ??
+        record?.researchAreas ??
+        record?.research_areas
     ),
     createdAt: normalizeField(record?.createdAt ?? record?.created_at),
     updatedAt: normalizeField(record?.updatedAt ?? record?.updated_at),
-    leaves: normalizeArray(record?.leaves ?? record?.leave ?? record?.leaveSummary ?? record?.leave_summary).map(
-      mapLeaveItem
-    ),
+    leaves: normalizeArray(
+      record?.leaves ?? record?.leave ?? record?.leaveSummary ?? record?.leave_summary
+    ).map(mapLeaveItem),
     committees: normalizeArray(record?.committees ?? record?.committee).map(mapCommitteeItem),
     awards: normalizeArray(record?.awards ?? record?.award).map(mapAwardItem),
     students: normalizeArray(
-      record?.students ?? record?.student ?? record?.studentsUnderProfessor ?? record?.students_under_professor
+      record?.students ??
+        record?.student ??
+        record?.studentsUnderProfessor ??
+        record?.students_under_professor
     ).map(mapStudentItem),
     coursePreferences: normalizeArray(
       record?.coursePreferences ??
@@ -277,23 +318,22 @@ export function mapFacultyRecord(record, index) {
   return mappedRecord;
 }
 
-export function mapFacultyCollection(payload) {
-  const rawItems = Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data)
-      ? payload.data
-      : payload?.data && typeof payload.data === "object"
-        ? [payload.data]
-      : Array.isArray(payload?.faculty)
-        ? payload.faculty
-        : payload?.faculty && typeof payload.faculty === "object"
-          ? [payload.faculty]
-        : null;
+export function mapFacultyCollection(payload: unknown): Faculty[] {
+  const source = payload as RawFacultyRecord;
+  const rawItems: RawFacultyRecord[] | null = Array.isArray(source)
+    ? source
+    : Array.isArray(source?.data)
+      ? source.data
+      : source?.data && typeof source.data === "object"
+        ? [source.data]
+        : Array.isArray(source?.faculty)
+          ? source.faculty
+          : source?.faculty && typeof source.faculty === "object"
+            ? [source.faculty]
+            : null;
 
   if (!rawItems) {
-    throw new Error(
-      "Faculty API response must be an array or expose a data/faculty array."
-    );
+    throw new Error("Faculty API response must be an array or expose a data/faculty array.");
   }
 
   return rawItems.map(mapFacultyRecord);

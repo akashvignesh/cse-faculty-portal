@@ -1,10 +1,17 @@
+import type { Faculty } from "../../types/faculty";
 import { mapFacultyCollection } from "./facultyMapper";
 
-export async function fetchFacultyFromApi({ apiUrl, fetchImpl = fetch }) {
+export interface FetchFacultyOptions {
+  apiUrl: string;
+  fetchImpl?: typeof fetch;
+}
+
+export async function fetchFacultyFromApi({
+  apiUrl,
+  fetchImpl = fetch,
+}: FetchFacultyOptions): Promise<Faculty[]> {
   if (!apiUrl) {
-    throw new Error(
-      "Dev mode requires NEXT_PUBLIC_FACULTY_API_URL to point to the faculty API."
-    );
+    throw new Error("Dev mode requires NEXT_PUBLIC_FACULTY_API_URL to point to the faculty API.");
   }
 
   const response = await fetchImpl(apiUrl, {

@@ -7,3 +7,4 @@ yarn-debug.log*
 yarn-error.log*
 .env*.local
 Editor-NodeJS-2.5.2/
+tsconfig.tsbuildinfo

@@ -1,3 +1,7 @@
+// DataTables configuration factories. The configs are consumed by the jQuery
+// DataTables runtime, whose option surface is too dynamic to type strictly —
+// the API objects are deliberately typed loosely at this boundary.
+
 const EXPORT_OPTIONS = {
   columns: ":visible",
   modifier: {
@@ -9,11 +13,13 @@ const EXPORT_OPTIONS = {
 const BUTTON_ICONS = {
   copy: '<span class="faculty-export-icon faculty-export-icon-copy" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 3h8v10H3V3Zm1.5 1.5v7h5v-7h-5ZM6 0h7v10h-1.5V1.5H6V0Z"/></svg></span>',
   csv: '<span class="faculty-export-icon faculty-export-icon-file" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 1h6l4 4v10H3V1Zm5.5 1.5v4h3.75L8.5 2.5ZM5 9h6v1.2H5V9Zm0 2.2h6v1.2H5v-1.2Z"/></svg></span>',
-  print: '<span class="faculty-export-icon faculty-export-icon-print" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 1h8v4H4V1Zm1.5 1.5v1h5v-1h-5ZM2 6h12a1 1 0 0 1 1 1v5h-3v3H4v-3H1V7a1 1 0 0 1 1-1Zm3.5 5.5v2h5v-2h-5ZM12.5 8a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg></span>',
-  columns: '<span class="faculty-export-icon faculty-export-icon-columns" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12v10H2V3Zm1.5 1.5v7h2.25v-7H3.5Zm3.5 0v7h2v-7H7Zm3.25 0v7h2.25v-7h-2.25Z"/></svg></span><span class="faculty-export-caret" aria-hidden="true">v</span>',
+  print:
+    '<span class="faculty-export-icon faculty-export-icon-print" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 1h8v4H4V1Zm1.5 1.5v1h5v-1h-5ZM2 6h12a1 1 0 0 1 1 1v5h-3v3H4v-3H1V7a1 1 0 0 1 1-1Zm3.5 5.5v2h5v-2h-5ZM12.5 8a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg></span>',
+  columns:
+    '<span class="faculty-export-icon faculty-export-icon-columns" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12v10H2V3Zm1.5 1.5v7h2.25v-7H3.5Zm3.5 0v7h2v-7H7Zm3.25 0v7h2.25v-7h-2.25Z"/></svg></span><span class="faculty-export-caret" aria-hidden="true">v</span>',
 };
 
-function printDataTable(dataTableApi) {
+function printDataTable(dataTableApi: any): void {
   if (typeof window === "undefined") {
     return;
   }
@@ -26,7 +32,7 @@ function printDataTable(dataTableApi) {
   }
 
   const printStage = document.createElement("div");
-  const tableClone = tableNode.cloneNode(true);
+  const tableClone = tableNode.cloneNode(true) as HTMLElement;
 
   printStage.className = "faculty-print-stage";
   tableClone.classList.add("faculty-print-table");
@@ -45,7 +51,7 @@ function printDataTable(dataTableApi) {
   window.setTimeout(() => window.print(), 0);
 }
 
-export function createFacultyTableConfig() {
+export function createFacultyTableConfig(): Record<string, any> {
   return {
     destroy: true,
     paging: true,
@@ -87,7 +93,7 @@ export function createFacultyTableConfig() {
                 text: BUTTON_ICONS.print,
                 titleAttr: "Print or save as PDF",
                 className: "faculty-export-button faculty-export-button-print",
-                action: function (event, dataTableApi) {
+                action: function (_event: any, dataTableApi: any) {
                   printDataTable(dataTableApi);
                 },
               },
@@ -122,17 +128,25 @@ export function createFacultyTableConfig() {
   };
 }
 
+export interface FacultyDetailTableConfigOptions {
+  filename?: string;
+  title?: string;
+  order?: [number, "asc" | "desc"][];
+  showButtons?: boolean;
+  showColumnVisibility?: boolean;
+}
+
 export function createFacultyDetailTableConfig({
   filename = "faculty-detail-table",
   title = "Faculty Detail",
   order = [[0, "asc"]],
   showButtons = true,
   showColumnVisibility = true,
-} = {}) {
-  const topEndFeatures = ["search"];
+}: FacultyDetailTableConfigOptions = {}): Record<string, any> {
+  const topEndFeatures: any[] = ["search"];
 
   if (showButtons) {
-    const buttons = [
+    const buttons: any[] = [
       {
         extend: "copyHtml5",
         text: BUTTON_ICONS.copy,
@@ -153,7 +167,7 @@ export function createFacultyDetailTableConfig({
         text: BUTTON_ICONS.print,
         titleAttr: "Print or save as PDF",
         className: "faculty-export-button faculty-export-button-print",
-        action: function (event, dataTableApi) {
+        action: function (_event: any, dataTableApi: any) {
           printDataTable(dataTableApi);
         },
       },
