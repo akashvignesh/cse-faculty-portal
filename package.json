@@ -17,7 +17,7 @@
     "datatables.net-buttons-dt": "^3.2.6",
     "datatables.net-dt": "^2.3.7",
     "datatables.net-editor-server": "^2.5.2",
-    "knex": "^3.2.10",
+    "knex": "~2.5.1",
     "mysql2": "^3.22.5",
     "next": "14.2.3",
     "qs": "^6.15.2",
