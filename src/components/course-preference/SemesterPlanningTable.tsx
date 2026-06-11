@@ -1,39 +1,53 @@
+"use client";
+
+import type { SemesterSlot, SlotStatus } from "@/types/faculty";
 import {
+  genId,
+  NOT_TEACHING_COMMENT_OPTIONS,
   SEMESTER_STATUS_OPTIONS,
   TEACHING_COMMENT_OPTIONS,
-  NOT_TEACHING_COMMENT_OPTIONS,
-  genId,
 } from "./coursePreferenceUtils";
+
+export interface SemesterPlanningTableProps {
+  semester: string;
+  rows: SemesterSlot[];
+  isLocked: boolean;
+  canAdd: boolean;
+  onChange: (rows: SemesterSlot[]) => void;
+}
 
 /**
  * Semester planning table.
  * Rows are pre-populated from the requested semester load.
  */
-export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd, onChange }) {
+export default function SemesterPlanningTable({
+  semester,
+  rows,
+  isLocked,
+  canAdd,
+  onChange,
+}: SemesterPlanningTableProps) {
   function addRow() {
     if (!canAdd) return;
-    onChange([
-      ...rows,
-      { id: genId(semester.toLowerCase()), status: "Teaching", comment: "" },
-    ]);
+    onChange([...rows, { id: genId(semester.toLowerCase()), status: "Teaching", comment: "" }]);
   }
 
-  function removeRow(id) {
+  function removeRow(id: string) {
     onChange(rows.filter((r) => r.id !== id));
   }
 
-  function updateRow(id, field, value) {
+  function updateRow(id: string, field: "status" | "comment", value: string) {
     onChange(
       rows.map((r) => {
         if (r.id !== id) return r;
-        const updated = { ...r, [field]: value };
-        if (field === "status") updated.comment = "";
+        const updated: SemesterSlot =
+          field === "status" ? { ...r, status: value as SlotStatus, comment: "" } : { ...r, comment: value };
         return updated;
       })
     );
   }
 
-  function commentOptions(status) {
+  function commentOptions(status: SlotStatus): string[] {
     return status === "Teaching" ? TEACHING_COMMENT_OPTIONS : NOT_TEACHING_COMMENT_OPTIONS;
   }
 
@@ -41,7 +55,10 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
     <div className="cp-semester-block">
       <div className="cp-semester-block-header">
         <h4 className="cp-semester-block-title">
-          <span className={`cp-semester-dot cp-semester-dot-${semester.toLowerCase()}`} aria-hidden="true" />
+          <span
+            className={`cp-semester-dot cp-semester-dot-${semester.toLowerCase()}`}
+            aria-hidden="true"
+          />
           {semester}
           {rows.length > 0 && (
             <span className="cp-semester-slot-count">
@@ -87,7 +104,11 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
 
                     <td className="cp-col-status">
                       {isLocked ? (
-                        <span className={`cp-status-badge cp-status-${row.status === "Teaching" ? "teaching" : "not-teaching"}`}>
+                        <span
+                          className={`cp-status-badge cp-status-${
+                            row.status === "Teaching" ? "teaching" : "not-teaching"
+                          }`}
+                        >
                           {row.status}
                         </span>
                       ) : (
@@ -98,7 +119,9 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
                           aria-label={`Course ${index + 1} status`}
                         >
                           {SEMESTER_STATUS_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
                           ))}
                         </select>
                       )}
@@ -116,7 +139,9 @@ export default function SemesterPlanningTable({ semester, rows, isLocked, canAdd
                         >
                           <option value="">- Select -</option>
                           {opts.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
                           ))}
                         </select>
                       )}

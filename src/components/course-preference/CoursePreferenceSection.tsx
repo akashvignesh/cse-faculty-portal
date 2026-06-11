@@ -1,12 +1,37 @@
-import { useMemo, useState } from "react";
-import { RANKING_OPTIONS, RANKING_LABELS, genId } from "./coursePreferenceUtils";
-import { courseCatalogMockData } from "../../data/courseCatalogMockData";
+"use client";
 
-function buildPrefLookup(preferences) {
+import { useMemo, useState } from "react";
+import { courseCatalogMockData } from "@/data/courseCatalogMockData";
+import type { PlannerCoursePreference } from "@/types/faculty";
+import { genId, RANKING_LABELS, RANKING_OPTIONS } from "./coursePreferenceUtils";
+
+interface CatalogCourse {
+  subject: string;
+  courseName: string;
+}
+
+export interface SaveMessage {
+  text: string;
+  type: string;
+}
+
+export interface CoursePreferenceSectionProps {
+  preferences: PlannerCoursePreference[];
+  isLocked: boolean;
+  onChange: (preferences: PlannerCoursePreference[]) => void;
+  onSave: () => void;
+  saveMessage: SaveMessage;
+}
+
+type PreferenceView = "selected" | "not-qualified" | "not-selected";
+
+function buildPrefLookup(
+  preferences: PlannerCoursePreference[]
+): Record<string, PlannerCoursePreference> {
   return Object.fromEntries(preferences.map((p) => [p.courseName, p]));
 }
 
-function deriveCourseCode(entry) {
+function deriveCourseCode(entry: CatalogCourse | null | undefined): string {
   if (!entry) return "";
   const firstToken = entry.courseName.split("-")[0] ?? "";
   return `${entry.subject}${firstToken}`.trim();
@@ -18,9 +43,9 @@ export default function CoursePreferenceSection({
   onChange,
   onSave,
   saveMessage,
-}) {
-  const [activeView, setActiveView] = useState("selected");
-  const [retainedNotSelectedCourses, setRetainedNotSelectedCourses] = useState([]);
+}: CoursePreferenceSectionProps) {
+  const [activeView, setActiveView] = useState<PreferenceView>("selected");
+  const [retainedNotSelectedCourses, setRetainedNotSelectedCourses] = useState<string[]>([]);
   const prefLookup = buildPrefLookup(preferences);
   const retainedNotSelectedSet = useMemo(
     () => new Set(retainedNotSelectedCourses),
@@ -28,7 +53,7 @@ export default function CoursePreferenceSection({
   );
   const courseRows = useMemo(
     () =>
-      courseCatalogMockData.map((course) => {
+      (courseCatalogMockData as CatalogCourse[]).map((course) => {
         const pref = prefLookup[course.courseName];
         return {
           course,
@@ -36,7 +61,8 @@ export default function CoursePreferenceSection({
           code: deriveCourseCode(course),
         };
       }),
-    [prefLookup]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [preferences]
   );
   const selectedRows = courseRows.filter((row) => row.currentRank !== null && row.currentRank > 0);
   const notQualifiedRows = courseRows.filter((row) => row.currentRank === 0);
@@ -44,15 +70,15 @@ export default function CoursePreferenceSection({
     activeView === "selected"
       ? selectedRows
       : activeView === "not-qualified"
-      ? notQualifiedRows
-      : courseRows.filter(
-          (row) => row.currentRank === null || retainedNotSelectedSet.has(row.course.courseName)
-        );
+        ? notQualifiedRows
+        : courseRows.filter(
+            (row) => row.currentRank === null || retainedNotSelectedSet.has(row.course.courseName)
+          );
   const selectedCount = selectedRows.length;
   const notQualifiedCount = notQualifiedRows.length;
   const notSelectedCount = courseCatalogMockData.length - preferences.length;
 
-  function handleRankClick(course, rank) {
+  function handleRankClick(course: CatalogCourse, rank: number) {
     const existing = prefLookup[course.courseName];
     if (activeView === "not-selected") {
       setRetainedNotSelectedCourses((prev) =>
@@ -65,9 +91,7 @@ export default function CoursePreferenceSection({
         onChange(preferences.filter((p) => p.courseName !== course.courseName));
       } else {
         onChange(
-          preferences.map((p) =>
-            p.courseName === course.courseName ? { ...p, ranking: rank } : p
-          )
+          preferences.map((p) => (p.courseName === course.courseName ? { ...p, ranking: rank } : p))
         );
       }
     } else {
@@ -83,7 +107,7 @@ export default function CoursePreferenceSection({
     }
   }
 
-  function nqLabel(n) {
+  function nqLabel(n: number): string | null {
     if (n === 0) return "NQ";
     if (n === 1) return "Least";
     if (n === 5) return "Most";
@@ -137,10 +161,7 @@ export default function CoursePreferenceSection({
           {!isLocked && (
             <div className="cp-pref-save-actions">
               {saveMessage?.text && (
-                <span
-                  className={`cp-save-message cp-save-message-${saveMessage.type}`}
-                  role="status"
-                >
+                <span className={`cp-save-message cp-save-message-${saveMessage.type}`} role="status">
                   {saveMessage.text}
                 </span>
               )}
@@ -207,7 +228,9 @@ export default function CoursePreferenceSection({
                             onClick={() => handleRankClick(course, n)}
                             aria-pressed={isSelected}
                             aria-label={`${course.subject} ${course.courseName}: ${RANKING_LABELS[n]}${isSelected ? " (click to clear)" : ""}`}
-                            title={isSelected ? `${RANKING_LABELS[n]} - click to clear` : RANKING_LABELS[n]}
+                            title={
+                              isSelected ? `${RANKING_LABELS[n]} - click to clear` : RANKING_LABELS[n]
+                            }
                           >
                             {isSelected ? displayLabel : ""}
                           </button>
@@ -224,8 +247,8 @@ export default function CoursePreferenceSection({
               {activeView === "selected"
                 ? "No courses have been selected yet."
                 : activeView === "not-qualified"
-                ? "No courses marked as Not Qualified."
-                : "All catalog courses have a preference set."}
+                  ? "No courses marked as Not Qualified."
+                  : "All catalog courses have a preference set."}
             </div>
           )}
         </div>

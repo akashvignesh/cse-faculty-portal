@@ -1,11 +1,16 @@
-import {
-  getComputedAnnualLoad,
-} from "./coursePreferenceUtils";
+import type { Faculty, YearData } from "@/types/faculty";
+import { getComputedAnnualLoad } from "./coursePreferenceUtils";
+
+export interface FacultyInfoCardProps {
+  faculty: Faculty;
+  yearData: YearData;
+  isLocked: boolean;
+}
 
 /**
  * Displays faculty type and roles supplied by faculty/backend data.
  */
-export default function FacultyInfoCard({ faculty, yearData, isLocked }) {
+export default function FacultyInfoCard({ faculty, yearData, isLocked }: FacultyInfoCardProps) {
   const annualLoad = getComputedAnnualLoad(yearData.facultyType, yearData.roles);
 
   const loadLabel =
@@ -22,7 +27,6 @@ export default function FacultyInfoCard({ faculty, yearData, isLocked }) {
 
       <div className="cp-section-body">
         <div className="cp-info-grid">
-
           <div className="cp-info-item">
             <span className="cp-info-label">Faculty Name</span>
             <span className="cp-info-value cp-info-value-strong">{faculty.name}</span>
@@ -43,12 +47,13 @@ export default function FacultyInfoCard({ faculty, yearData, isLocked }) {
           <div className="cp-info-item">
             <span className="cp-info-label">Default Teaching Load</span>
             <span className={`cp-info-value${annualLoad === 0 ? "" : " cp-info-value-strong"}`}>
-              {annualLoad === 0
-                ? <span className="cp-full-release-tag">Full Release (0 courses)</span>
-                : loadLabel}
+              {annualLoad === 0 ? (
+                <span className="cp-full-release-tag">Full Release (0 courses)</span>
+              ) : (
+                loadLabel
+              )}
             </span>
           </div>
-
         </div>
       </div>
     </div>
