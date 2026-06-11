@@ -114,10 +114,15 @@ describe("mapFacultyRecord", () => {
     });
   });
 
-  it("throws when required fields are missing", () => {
-    expect(() => mapFacultyRecord({ name: "No Office", userid: "nooffice" }, 3)).toThrow(
-      /index 3.*name, userid, officeAddress/
+  it("throws when no routable identifier is present", () => {
+    expect(() => mapFacultyRecord({ name: "No Ids" }, 3)).toThrow(
+      /index 3.*name plus userid or personNumber/
     );
+  });
+
+  it("accepts records without an office address (DB mode)", () => {
+    const result = mapFacultyRecord({ name: "No Office", userid: "nooffice" }, 0);
+    expect(result.officeAddress).toBe("");
   });
 });
 

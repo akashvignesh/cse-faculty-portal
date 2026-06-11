@@ -214,9 +214,12 @@ function mapTeachingHistoryItem(
 
 const TERM_KEYS: TermKey[] = ["spring", "summer", "fall"];
 
-function mapTeachingHistory(record: RawFacultyRecord): TeachingHistory {
-  const historyPayload = pickTeachingHistoryPayload(record);
-  const data = historyPayload?.data ?? historyPayload ?? {};
+/**
+ * Maps a teaching-history payload (the `data` object of the
+ * /teaching-history endpoint, or an equivalent embedded object) into the
+ * normalized TeachingHistory shape. Also used for lazy per-tab fetches.
+ */
+export function mapTeachingHistoryData(data: RawFacultyRecord): TeachingHistory {
   const years = normalizeArray(data?.years);
   const rows: TeachingHistoryItem[] = [];
 
@@ -239,6 +242,11 @@ function mapTeachingHistory(record: RawFacultyRecord): TeachingHistory {
     })),
     rows,
   };
+}
+
+function mapTeachingHistory(record: RawFacultyRecord): TeachingHistory {
+  const historyPayload = pickTeachingHistoryPayload(record);
+  return mapTeachingHistoryData(historyPayload?.data ?? historyPayload ?? {});
 }
 
 export function mapFacultyRecord(record: RawFacultyRecord, index: number): Faculty {
@@ -309,9 +317,12 @@ export function mapFacultyRecord(record: RawFacultyRecord, index: number): Facul
     teachingHistory: mapTeachingHistory(record),
   };
 
-  if (!mappedRecord.name || !mappedRecord.userid || !mappedRecord.officeAddress) {
+  // Identity invariant: a record must have a name and at least one routable
+  // id. Office address is display-only and may legitimately be absent in the
+  // university database.
+  if (!mappedRecord.name || (!mappedRecord.userid && !mappedRecord.personNumber)) {
     throw new Error(
-      `Faculty record at index ${index} is missing one of the required fields: name, userid, officeAddress.`
+      `Faculty record at index ${index} is missing required fields: name plus userid or personNumber.`
     );
   }
 
