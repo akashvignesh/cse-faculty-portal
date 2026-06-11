@@ -16,14 +16,21 @@
   "dependencies": {
     "datatables.net-buttons-dt": "^3.2.6",
     "datatables.net-dt": "^2.3.7",
+    "datatables.net-editor-server": "^2.5.2",
+    "knex": "^3.2.10",
+    "mysql2": "^3.22.5",
     "next": "14.2.3",
+    "qs": "^6.15.2",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "server-only": "^0.0.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^25.9.3",
+    "@types/qs": "^6.15.1",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^6.0.2",

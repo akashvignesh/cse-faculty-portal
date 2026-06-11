@@ -1,31 +1,36 @@
-import { FACULTY_DATA_MODES, type AppConfig } from "../../config/appConfig";
-import { facultyMockData } from "../../data/facultyMockData";
-import type { Faculty } from "../../types/faculty";
-import { fetchFacultyFromApi } from "./facultyApi";
+import type { ApiResponse, PaginatedResponse } from "@/types/api";
+import type { Faculty, RawFacultyRecord } from "@/types/faculty";
 import { mapFacultyCollection } from "./facultyMapper";
 
+// The browser always talks to this app's own API routes. The local-vs-database
+// switch lives server-side (FACULTY_DATA_MODE) — see src/server/data.
+
+const FACULTY_LIST_URL = "/api/v1/faculty?page=0&size=500";
+
 export interface LoadFacultyOptions {
-  config: AppConfig;
+  /** Unused legacy option, kept while the Pages Router callers migrate. */
+  config?: unknown;
   fetchImpl?: typeof fetch;
 }
 
 export async function loadFacultyRecords({
-  config,
   fetchImpl = fetch,
-}: LoadFacultyOptions): Promise<Faculty[]> {
-  switch (config.facultyDataMode) {
-    case FACULTY_DATA_MODES.LOCAL:
-      return mapFacultyCollection(facultyMockData);
+}: LoadFacultyOptions = {}): Promise<Faculty[]> {
+  const response = await fetchImpl(FACULTY_LIST_URL, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
 
-    case FACULTY_DATA_MODES.DEV:
-      return fetchFacultyFromApi({
-        apiUrl: config.facultyApiUrl,
-        fetchImpl,
-      });
-
-    default:
-      throw new Error(`Unsupported faculty data mode: ${config.facultyDataMode}`);
+  if (!response.ok) {
+    throw new Error(`Faculty API request failed with status ${response.status}.`);
   }
+
+  const payload = (await response.json()) as ApiResponse<PaginatedResponse<RawFacultyRecord>>;
+  if (!payload.success || !payload.data) {
+    throw new Error(payload.message || "Faculty API request failed.");
+  }
+
+  return mapFacultyCollection(payload.data.content);
 }
 
 export function findFacultyByUserid(records: Faculty[], userid: unknown): Faculty | undefined {
