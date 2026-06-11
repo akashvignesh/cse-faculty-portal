@@ -78,6 +78,17 @@ export function academicYearTermCodes(academicYear: string): AcademicYearTermCod
   };
 }
 
+/**
+ * The academic year a date falls in. August–December belong to the year that
+ * starts that fall; January–July to the year that started the previous fall.
+ */
+export function currentAcademicYear(date: Date = new Date()): string {
+  const month = date.getMonth(); // 0-based
+  const year = date.getFullYear();
+  const startYear = month >= 7 ? year : year - 1;
+  return `${startYear}-${startYear + 1}`;
+}
+
 export function termCodeToLabel(termCode: string): string {
   const decoded = decodeTermCode(termCode);
   if (!decoded) return termCode;

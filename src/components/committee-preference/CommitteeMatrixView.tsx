@@ -4,21 +4,18 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import DetailSidebar from "@/components/faculty-detail/DetailSidebar";
 import { APP_TITLE } from "@/config/appConfig";
-import { committeeList, committeeMembershipData } from "@/data/committeeMockData";
+import { EditorError } from "@/lib/editor/client";
 import { displayValue } from "@/lib/format";
+import { currentAcademicYear } from "@/lib/term";
+import {
+  loadMatrixData,
+  saveMatrix,
+  type LoadedAssignment,
+  type LoadedSummary,
+  type MatrixColumn,
+} from "@/services/committee/committeeMatrixService";
 import { findFacultyByUserid, loadFacultyRecords } from "@/services/faculty/facultyService";
 import type { Faculty } from "@/types/faculty";
-
-interface CommitteeColumn {
-  id: number;
-  name: string;
-  type: string;
-  category: number;
-  servicePoints: number;
-}
-
-const roleCols = (committeeList as CommitteeColumn[]).filter((c) => c.type === "role");
-const committeeCols = (committeeList as CommitteeColumn[]).filter((c) => c.type === "committee");
 
 const COMMITTEE_OPTIONS = [
   { value: "", label: "—" },
@@ -62,46 +59,83 @@ const COUNT_ROW_DEFS = [
 ];
 
 export default function CommitteeMatrixView({ userid }: { userid: string }) {
+  const academicYear = useMemo(() => currentAcademicYear(), []);
+
   const [records, setRecords] = useState<Faculty[]>([]);
+  const [columns, setColumns] = useState<MatrixColumn[]>([]);
+  const [dataSource, setDataSource] = useState<"db" | "mock">("mock");
+  const [loadedAssignments, setLoadedAssignments] = useState<LoadedAssignment[]>([]);
+  const [loadedSummaries, setLoadedSummaries] = useState<LoadedSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [memberships, setMemberships] = useState<Record<string, string>>({});
   const [extras, setExtras] = useState<Record<string, Record<string, string>>>({});
   const [submitMessage, setSubmitMessage] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [showCounts, setShowCounts] = useState(false);
 
-  useEffect(() => {
-    const initial: Record<string, string> = {};
-    committeeMembershipData.forEach(({ userid: uid, committeeId, role }) => {
-      initial[`${uid}-${committeeId}`] = role || "";
+  const roleCols = useMemo(() => columns.filter((c) => c.type === "role"), [columns]);
+  const committeeCols = useMemo(() => columns.filter((c) => c.type === "committee"), [columns]);
+
+  function applyLoadedData(data: {
+    source: "db" | "mock";
+    columns: MatrixColumn[];
+    assignments: LoadedAssignment[];
+    summaries: LoadedSummary[];
+  }) {
+    setDataSource(data.source);
+    setColumns(data.columns);
+    setLoadedAssignments(data.assignments);
+    setLoadedSummaries(data.summaries);
+
+    const cells: Record<string, string> = {};
+    data.assignments.forEach((assignment) => {
+      cells[`${assignment.userid}-${assignment.catalogId}`] = assignment.uiCode;
     });
-    setMemberships(initial);
-  }, []);
+    setMemberships(cells);
+
+    const extrasByUser: Record<string, Record<string, string>> = {};
+    data.summaries.forEach((summary) => {
+      extrasByUser[summary.userid] = {
+        others: summary.others,
+        servicePoints: summary.servicePoints,
+        comments: summary.comments,
+      };
+    });
+    setExtras(extrasByUser);
+  }
 
   useEffect(() => {
     let isActive = true;
-    async function loadRecords() {
+
+    async function load() {
       setIsLoading(true);
       setErrorMessage("");
       try {
-        const nextRecords = await loadFacultyRecords();
+        const [nextRecords, matrixData] = await Promise.all([
+          loadFacultyRecords(),
+          loadMatrixData(academicYear),
+        ]);
         if (!isActive) return;
         setRecords(nextRecords);
+        applyLoadedData(matrixData);
       } catch (error) {
         if (!isActive) return;
         setRecords([]);
         setErrorMessage(
-          `Unable to load faculty data. ${error instanceof Error ? error.message : "Unknown error."}`
+          `Unable to load committee data. ${error instanceof Error ? error.message : "Unknown error."}`
         );
       } finally {
         if (isActive) setIsLoading(false);
       }
     }
-    loadRecords();
+
+    load();
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [academicYear]);
 
   const faculty = useMemo(() => findFacultyByUserid(records, userid), [records, userid]);
 
@@ -118,6 +152,7 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
   function setValue(uid: string, committeeId: number, value: string) {
     setMemberships((cur) => ({ ...cur, [`${uid}-${committeeId}`]: value }));
     setSubmitMessage("");
+    setSubmitError("");
   }
 
   function countChairs(uid: string): number {
@@ -135,11 +170,48 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
   function setExtra(uid: string, key: string, val: string) {
     setExtras((cur) => ({ ...cur, [uid]: { ...cur[uid], [key]: val } }));
     setSubmitMessage("");
+    setSubmitError("");
   }
 
-  function handleSubmit() {
-    const total = Object.values(memberships).filter(Boolean).length;
-    setSubmitMessage(`Saved ${total} assignment${total === 1 ? "" : "s"}.`);
+  async function handleSubmit() {
+    setSubmitMessage("");
+    setSubmitError("");
+
+    if (dataSource === "mock") {
+      const total = Object.values(memberships).filter(Boolean).length;
+      setSubmitMessage(
+        `Saved ${total} assignment${total === 1 ? "" : "s"} (mock mode — not persisted).`
+      );
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = await saveMatrix({
+        academicYear,
+        memberships,
+        loadedAssignments,
+        extras,
+        loadedSummaries,
+      });
+      // Reload so the baseline reflects what is now stored.
+      const refreshed = await loadMatrixData(academicYear);
+      applyLoadedData(refreshed);
+      setSubmitMessage(
+        `Saved: ${result.created} added, ${result.updated} updated, ${result.removed} removed` +
+          (result.summariesSaved > 0 ? `, ${result.summariesSaved} summary rows.` : ".")
+      );
+    } catch (error) {
+      if (error instanceof EditorError) {
+        setSubmitError(`Save failed — ${error.message}`);
+      } else {
+        setSubmitError(
+          `Save failed. ${error instanceof Error ? error.message : "Unknown error."}`
+        );
+      }
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   // Per-column aggregate counts for the collapsible count rows
@@ -147,7 +219,7 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
     return records.filter((m) => getValue(m.userid, committeeId) === value).length;
   }
 
-  function getCountRowVal(col: CommitteeColumn, rowKey: string): string | number {
+  function getCountRowVal(col: MatrixColumn, rowKey: string): string | number {
     if (col.type === "role") {
       if (rowKey === "members") {
         const n = colCount(col.id, "X");
@@ -218,7 +290,10 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                 <section className="faculty-secondary-card">
                   <div className="faculty-committee-heading">
                     <h2>Edit Committee Preference</h2>
-                    <p>Faculty committee membership assignments across all committees.</p>
+                    <p>
+                      Faculty committee membership assignments for {academicYear}
+                      {dataSource === "mock" ? " (mock data)" : ""}.
+                    </p>
                   </div>
 
                   <div className="faculty-secondary-body">
@@ -442,12 +517,21 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                           type="button"
                           className="faculty-course-preference-submit"
                           onClick={handleSubmit}
+                          disabled={isSaving}
                         >
-                          Save Changes
+                          {isSaving ? "Saving…" : "Save Changes"}
                         </button>
                         {submitMessage ? (
                           <div className="faculty-course-preference-feedback" role="status">
                             {submitMessage}
+                          </div>
+                        ) : null}
+                        {submitError ? (
+                          <div
+                            className="faculty-table-status faculty-table-status-error"
+                            role="alert"
+                          >
+                            {submitError}
                           </div>
                         ) : null}
                       </div>

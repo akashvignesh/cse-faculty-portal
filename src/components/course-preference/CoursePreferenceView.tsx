@@ -8,7 +8,14 @@ import {
   getInitialYearDataForFaculty,
   INITIAL_ACADEMIC_YEARS,
 } from "@/data/coursePreferenceMockData";
+import { EditorError } from "@/lib/editor/client";
 import { displayValue } from "@/lib/format";
+import {
+  loadStoredYearPlan,
+  saveCourseRankings,
+  saveYearPlan,
+  type StoredYearPlan,
+} from "@/services/course-plan/coursePlanService";
 import { fetchFacultyDetail } from "@/services/faculty/facultyDetailService";
 import type { Faculty, PlannerCoursePreference, SemesterSlot, YearData } from "@/types/faculty";
 import AcademicYearSelector from "./AcademicYearSelector";
@@ -35,6 +42,11 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
   const [yearDataMap, setYearDataMap] = useState<Record<string, YearData>>({});
   const [saveMessage, setSaveMessage] = useState<SaveMessage>({ text: "", type: "" });
   const [activeTab, setActiveTab] = useState<"semester" | "courses">("semester");
+  const [isSaving, setIsSaving] = useState(false);
+  // Editor backend availability + per-year stored plans (diff/upsert baseline).
+  const [storedPlans, setStoredPlans] = useState<Record<string, StoredYearPlan | null>>({});
+  const [editorAvailable, setEditorAvailable] = useState(false);
+  const [prefsBaseline, setPrefsBaseline] = useState<Record<string, PlannerCoursePreference[]>>({});
 
   useEffect(() => {
     let isActive = true;
@@ -108,6 +120,61 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
     setYearDataMap(map);
   }, [faculty]);
 
+  // Capture the prefs baseline per year (for delete detection on save).
+  useEffect(() => {
+    setPrefsBaseline((current) => {
+      if (current[selectedYear] || !yearDataMap[selectedYear]) return current;
+      return {
+        ...current,
+        [selectedYear]: yearDataMap[selectedYear]?.coursePreferences ?? [],
+      };
+    });
+  }, [yearDataMap, selectedYear]);
+
+  // Overlay the stored DB plan (when the editor backend is available) on top
+  // of the mock/empty scaffolding for the selected year.
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadStored() {
+      if (!faculty?.personNumber || selectedYear in storedPlans) return;
+
+      try {
+        const { available, plan } = await loadStoredYearPlan(faculty.personNumber, selectedYear);
+        if (!isActive) return;
+
+        setEditorAvailable(available);
+        setStoredPlans((current) => ({ ...current, [selectedYear]: plan }));
+
+        if (plan) {
+          setYearDataMap((current) => {
+            const base = current[selectedYear] ?? createEmptyYearData();
+            return {
+              ...current,
+              [selectedYear]: {
+                ...base,
+                facultyType: plan.facultyType ?? base.facultyType,
+                semesterPlan: plan.semesterPlan,
+                requestedLoad: {
+                  summer: plan.semesterPlan.summer.length,
+                  fall: plan.semesterPlan.fall.length,
+                  spring: plan.semesterPlan.spring.length,
+                },
+              },
+            };
+          });
+        }
+      } catch {
+        // Stored-plan overlay is best effort; the mock scaffolding still works.
+      }
+    }
+
+    loadStored();
+    return () => {
+      isActive = false;
+    };
+  }, [faculty, selectedYear, storedPlans]);
+
   const isCurrentYearLocked = useMemo(
     () => allYears.find((yr) => yr.year === selectedYear)?.locked ?? false,
     [allYears, selectedYear]
@@ -151,11 +218,82 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
     }));
   }
 
-  function handleSave() {
-    setSaveMessage({
-      text: "Preferences saved successfully (mock).",
-      type: "success",
-    });
+  async function handleSaveSemesterPlan() {
+    if (!faculty) return;
+
+    if (!editorAvailable || !faculty.personNumber) {
+      setSaveMessage({ text: "Preferences saved (mock mode — not persisted).", type: "success" });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const stored = storedPlans[selectedYear] ?? null;
+      if (stored?.locked) {
+        setSaveMessage({ text: `The ${selectedYear} plan is locked.`, type: "error" });
+        return;
+      }
+
+      const result = await saveYearPlan({
+        personNumber: faculty.personNumber,
+        academicYear: selectedYear,
+        facultyType: currentYearData.facultyType,
+        semesterPlan: currentYearData.semesterPlan,
+        storedPlan: stored,
+      });
+
+      // Refresh the baseline so the next save diffs against what is stored.
+      const refreshed = await loadStoredYearPlan(faculty.personNumber, selectedYear);
+      const refreshedPlan = refreshed.plan;
+      setStoredPlans((current) => ({ ...current, [selectedYear]: refreshedPlan }));
+      if (refreshedPlan) {
+        setYearDataMap((current) => ({
+          ...current,
+          [selectedYear]: {
+            ...(current[selectedYear] ?? createEmptyYearData()),
+            semesterPlan: refreshedPlan.semesterPlan,
+          },
+        }));
+      }
+
+      setSaveMessage({
+        text: `Semester plan saved (${result.slotsSaved} slot${result.slotsSaved === 1 ? "" : "s"}).`,
+        type: "success",
+      });
+    } catch (error) {
+      const message =
+        error instanceof EditorError || error instanceof Error ? error.message : "Unknown error.";
+      setSaveMessage({ text: `Save failed — ${message}`, type: "error" });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSaveCoursePreferences() {
+    if (!faculty) return;
+
+    setIsSaving(true);
+    try {
+      const result = await saveCourseRankings(
+        faculty.userid || userid,
+        selectedYear,
+        currentYearData.coursePreferences,
+        prefsBaseline[selectedYear] ?? []
+      );
+      setPrefsBaseline((current) => ({
+        ...current,
+        [selectedYear]: currentYearData.coursePreferences,
+      }));
+      setSaveMessage({
+        text: `${result.message} (${result.totalProcessed} course${result.totalProcessed === 1 ? "" : "s"}).`,
+        type: "success",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error.";
+      setSaveMessage({ text: `Save failed — ${message}`, type: "error" });
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function renderSemesterPlanning() {
@@ -321,7 +459,7 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                           preferences={currentYearData.coursePreferences}
                           isLocked={isCurrentYearLocked}
                           onChange={updateCoursePreferences}
-                          onSave={handleSave}
+                          onSave={handleSaveCoursePreferences}
                           saveMessage={saveMessage}
                         />
                       )}
@@ -330,8 +468,13 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
 
                   {!isCurrentYearLocked && activeTab === "semester" && (
                     <div className="cp-save-bar">
-                      <button type="button" className="cp-save-btn" onClick={handleSave}>
-                        Save Preferences
+                      <button
+                        type="button"
+                        className="cp-save-btn"
+                        onClick={handleSaveSemesterPlan}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? "Saving…" : "Save Preferences"}
                       </button>
 
                       {saveMessage.text && (
