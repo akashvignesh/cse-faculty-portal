@@ -6,7 +6,7 @@ import { ok } from "@/lib/api/response";
 import { getDataSource } from "@/server/data";
 
 interface RouteContext {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /** GET /api/v1/faculty/{personNumber|userid}/teaching-history */

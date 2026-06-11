@@ -7,7 +7,7 @@ import { getDataSource } from "@/server/data";
 import type { SaveTeachingPreferencesRequest } from "@/server/data/types";
 
 interface RouteContext {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /** GET /api/v1/faculty/{userid|personNumber}/teaching-preferences */
