@@ -164,7 +164,10 @@ describe("biannual carry-forward", () => {
 
 describe("validateSemesterPlan", () => {
   it("warns when planned slots are below the expected load", () => {
-    const messages = validateSemesterPlan({ summer: [], fall: [teachingSlot("f1")], spring: [] }, 3);
+    const messages = validateSemesterPlan(
+      { summer: [], fall: [teachingSlot("f1")], spring: [] },
+      3
+    );
     expect(messages).toHaveLength(1);
     expect(messages[0]?.message).toMatch(/Add more slots/);
   });
@@ -183,9 +186,9 @@ describe("validateSemesterPlan", () => {
   });
 
   it("returns no messages when the plan matches", () => {
-    expect(
-      validateSemesterPlan({ summer: [], fall: [teachingSlot("f1")], spring: [] }, 1)
-    ).toEqual([]);
+    expect(validateSemesterPlan({ summer: [], fall: [teachingSlot("f1")], spring: [] }, 1)).toEqual(
+      []
+    );
   });
 });
 

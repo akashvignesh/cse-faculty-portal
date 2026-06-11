@@ -129,7 +129,10 @@ export default function SemesterLoadSection({
         </div>
 
         {totalMsg && (
-          <div className={`cp-validation-banner cp-validation-banner-${totalMsg.type}`} role="alert">
+          <div
+            className={`cp-validation-banner cp-validation-banner-${totalMsg.type}`}
+            role="alert"
+          >
             <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
               {totalMsg.type === "error" ? (
                 <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm-.75 4.25a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-1.5 0v-3Zm.75 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />

@@ -161,7 +161,10 @@ export default function CoursePreferenceSection({
           {!isLocked && (
             <div className="cp-pref-save-actions">
               {saveMessage?.text && (
-                <span className={`cp-save-message cp-save-message-${saveMessage.type}`} role="status">
+                <span
+                  className={`cp-save-message cp-save-message-${saveMessage.type}`}
+                  role="status"
+                >
                   {saveMessage.text}
                 </span>
               )}
@@ -229,7 +232,9 @@ export default function CoursePreferenceSection({
                             aria-pressed={isSelected}
                             aria-label={`${course.subject} ${course.courseName}: ${RANKING_LABELS[n]}${isSelected ? " (click to clear)" : ""}`}
                             title={
-                              isSelected ? `${RANKING_LABELS[n]} - click to clear` : RANKING_LABELS[n]
+                              isSelected
+                                ? `${RANKING_LABELS[n]} - click to clear`
+                                : RANKING_LABELS[n]
                             }
                           >
                             {isSelected ? displayLabel : ""}

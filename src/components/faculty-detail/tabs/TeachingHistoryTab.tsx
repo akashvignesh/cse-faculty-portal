@@ -24,7 +24,12 @@ export default function TeachingHistoryTab({ faculty }: { faculty: Faculty }) {
     )
   ).sort((firstYear, secondYear) => Number(secondYear) - Number(firstYear));
 
-  const termSet = new Set(rows.map((course) => course.term).filter(Boolean).map(String));
+  const termSet = new Set(
+    rows
+      .map((course) => course.term)
+      .filter(Boolean)
+      .map(String)
+  );
   const availableTerms = [
     ...TEACHING_TERM_ORDER.filter((term) => termSet.has(term)),
     ...Array.from(termSet)

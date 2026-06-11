@@ -205,9 +205,7 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
       if (error instanceof EditorError) {
         setSubmitError(`Save failed — ${error.message}`);
       } else {
-        setSubmitError(
-          `Save failed. ${error instanceof Error ? error.message : "Unknown error."}`
-        );
+        setSubmitError(`Save failed. ${error instanceof Error ? error.message : "Unknown error."}`);
       }
     } finally {
       setIsSaving(false);
@@ -455,7 +453,9 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                                         <select
                                           className={`committee-matrix-select${val ? ` committee-matrix-select-${val}` : ""}`}
                                           value={val}
-                                          onChange={(e) => setValue(member.userid, c.id, e.target.value)}
+                                          onChange={(e) =>
+                                            setValue(member.userid, c.id, e.target.value)
+                                          }
                                           aria-label={`${member.name} — ${c.name}`}
                                           title={`${member.name} — ${c.name}`}
                                         >
@@ -497,7 +497,9 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                                               : "committee-matrix-input-number"
                                           }
                                           value={getExtra(member.userid, col.key)}
-                                          onChange={(e) => setExtra(member.userid, col.key, e.target.value)}
+                                          onChange={(e) =>
+                                            setExtra(member.userid, col.key, e.target.value)
+                                          }
                                           aria-label={`${col.label} for ${member.name}`}
                                           min={col.type === "number" ? "0" : undefined}
                                         />

@@ -184,7 +184,10 @@ export async function loadMatrixData(academicYear: string): Promise<MatrixData> 
             : Number(catalog.display_order),
       };
     })
-    .sort((a, b) => (a as { displayOrder: number }).displayOrder - (b as { displayOrder: number }).displayOrder)
+    .sort(
+      (a, b) =>
+        (a as { displayOrder: number }).displayOrder - (b as { displayOrder: number }).displayOrder
+    )
     .map(({ id, name, type, category, servicePoints }) => ({
       id,
       name,
@@ -196,7 +199,9 @@ export async function loadMatrixData(academicYear: string): Promise<MatrixData> 
   const columnTypeById = new Map(columns.map((column) => [column.id, column.type]));
 
   const [assignmentRows, summaryRows] = await Promise.all([
-    editorLoad<AssignmentRow>(`${ASSIGNMENTS_URL}?academic_year=${encodeURIComponent(academicYear)}`),
+    editorLoad<AssignmentRow>(
+      `${ASSIGNMENTS_URL}?academic_year=${encodeURIComponent(academicYear)}`
+    ),
     editorLoad<SummaryRow>(`${SUMMARY_URL}?academic_year=${encodeURIComponent(academicYear)}`),
   ]);
 

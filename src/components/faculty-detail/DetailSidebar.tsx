@@ -7,7 +7,12 @@ export interface DetailSidebarProps {
   activePage: SidebarPage;
 }
 
-const NAV_ITEMS: { page: SidebarPage; label: string; href: (userid: string) => string; icon: string }[] = [
+const NAV_ITEMS: {
+  page: SidebarPage;
+  label: string;
+  href: (userid: string) => string;
+  icon: string;
+}[] = [
   {
     page: "profile",
     label: "Profile",
@@ -42,7 +47,11 @@ export default function DetailSidebar({ userid, activePage }: DetailSidebarProps
               aria-current={isActive ? "page" : undefined}
             >
               <span className="faculty-detail-dashboard-icon" aria-hidden="true">
-                <svg viewBox="0 0 16 16" className="faculty-detail-dashboard-icon-svg" focusable="false">
+                <svg
+                  viewBox="0 0 16 16"
+                  className="faculty-detail-dashboard-icon-svg"
+                  focusable="false"
+                >
                   <path d={item.icon} />
                 </svg>
               </span>

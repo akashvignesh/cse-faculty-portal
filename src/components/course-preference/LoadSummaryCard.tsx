@@ -66,7 +66,8 @@ export default function LoadSummaryCard({ yearData }: { yearData: YearData }) {
               <ul className="cp-load-role-list">
                 {roleAdjConfigs.map((r) => (
                   <li key={r.role}>
-                    {r.role}: {r.adjustment === "FULL_RELEASE" ? "Full Release" : `−${r.adjustment}`}
+                    {r.role}:{" "}
+                    {r.adjustment === "FULL_RELEASE" ? "Full Release" : `−${r.adjustment}`}
                   </li>
                 ))}
               </ul>

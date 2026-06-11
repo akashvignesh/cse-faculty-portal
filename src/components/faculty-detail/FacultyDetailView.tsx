@@ -22,9 +22,7 @@ export default function FacultyDetailView({ userid }: { userid: string }) {
   const [activeTab, setActiveTab] = useState<DetailTab>(DETAIL_TABS.RESEARCH_AREA);
 
   useEffect(() => {
-    document.title = faculty
-      ? `${faculty.name} | ${APP_TITLE}`
-      : `Faculty Detail | ${APP_TITLE}`;
+    document.title = faculty ? `${faculty.name} | ${APP_TITLE}` : `Faculty Detail | ${APP_TITLE}`;
   }, [faculty]);
 
   useEffect(() => {

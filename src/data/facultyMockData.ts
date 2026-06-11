@@ -8,25 +8,12 @@ export const facultyMockData = [
     statusMessage: "jsmith doing business as jsmith in role faculty",
     primaryEmail: "jsmith@buffalo.edu",
     secondaryEmail: "john.smith@research.buffalo.edu",
-    physicalAddressLines: [
-      "Davis Hall 101",
-      "Buffalo, NY 14260-2500 USA",
-    ],
-    mailingAddressLines: [
-      "338 Davis Hall",
-      "Buffalo, NY 14260-2500 USA",
-    ],
-    socialLinks: [
-      "scholar.google.com/citations?user=jsmith",
-      "linkedin.com/in/john-smith-cse",
-    ],
+    physicalAddressLines: ["Davis Hall 101", "Buffalo, NY 14260-2500 USA"],
+    mailingAddressLines: ["338 Davis Hall", "Buffalo, NY 14260-2500 USA"],
+    socialLinks: ["scholar.google.com/citations?user=jsmith", "linkedin.com/in/john-smith-cse"],
     pronouns: "He/Him/His",
     primaryAppointment: "Associate Professor",
-    researchTopics: [
-      "Distributed systems",
-      "Cloud infrastructure",
-      "Systems security",
-    ],
+    researchTopics: ["Distributed systems", "Cloud infrastructure", "Systems security"],
     leaves: [
       {
         leaveId: "L-1001",
@@ -121,7 +108,8 @@ export const facultyMockData = [
             spring: [
               {
                 classNumber: "12311",
-                courseName: "111LLB-Introduction to Quantitative Analysis and Reasoning with Computing",
+                courseName:
+                  "111LLB-Introduction to Quantitative Analysis and Reasoning with Computing",
                 courseType: "Lecture",
                 courseCareer: "Undergraduate",
               },
@@ -155,23 +143,12 @@ export const facultyMockData = [
     statusMessage: "abrown doing business as abrown in role faculty",
     primaryEmail: "abrown@buffalo.edu",
     secondaryEmail: "alice.brown@buffalo.edu",
-    physicalAddressLines: [
-      "Bell Hall 220",
-      "Buffalo, NY 14260-2500 USA",
-    ],
-    mailingAddressLines: [
-      "220 Bell Hall",
-      "Buffalo, NY 14260-2500 USA",
-    ],
-    socialLinks: [
-      "cse.buffalo.edu/~abrown",
-    ],
+    physicalAddressLines: ["Bell Hall 220", "Buffalo, NY 14260-2500 USA"],
+    mailingAddressLines: ["220 Bell Hall", "Buffalo, NY 14260-2500 USA"],
+    socialLinks: ["cse.buffalo.edu/~abrown"],
     pronouns: "She/Her/Hers",
     primaryAppointment: "Teaching Professor",
-    researchTopics: [
-      "Computing education",
-      "Curriculum design",
-    ],
+    researchTopics: ["Computing education", "Curriculum design"],
     leaves: [
       {
         leaveId: "L-2001",
@@ -238,25 +215,12 @@ export const facultyMockData = [
     statusMessage: "rlee doing business as rlee in role faculty",
     primaryEmail: "rlee@buffalo.edu",
     secondaryEmail: "robert.lee@cse.buffalo.edu",
-    physicalAddressLines: [
-      "Furnas Hall 310",
-      "Buffalo, NY 14260-2500 USA",
-    ],
-    mailingAddressLines: [
-      "310 Furnas Hall",
-      "Buffalo, NY 14260-2500 USA",
-    ],
-    socialLinks: [
-      "github.com/rlee-cse",
-      "scholar.google.com/citations?user=rlee",
-    ],
+    physicalAddressLines: ["Furnas Hall 310", "Buffalo, NY 14260-2500 USA"],
+    mailingAddressLines: ["310 Furnas Hall", "Buffalo, NY 14260-2500 USA"],
+    socialLinks: ["github.com/rlee-cse", "scholar.google.com/citations?user=rlee"],
     pronouns: "He/Him/His",
     primaryAppointment: "Assistant Professor",
-    researchTopics: [
-      "Machine learning",
-      "Computer vision",
-      "Responsible AI",
-    ],
+    researchTopics: ["Machine learning", "Computer vision", "Responsible AI"],
     leaves: [],
     committees: [
       {
@@ -308,14 +272,8 @@ export const facultyMockData = [
     statusMessage: "roshana doing business as roshana in role faculty",
     primaryEmail: "roshana@buffalo.edu",
     secondaryEmail: "",
-    physicalAddressLines: [
-      "113I Davis Hall",
-      "Buffalo, NY 14260-2500 USA",
-    ],
-    mailingAddressLines: [
-      "113I Davis Hall",
-      "Buffalo, NY 14260-2500 USA",
-    ],
+    physicalAddressLines: ["113I Davis Hall", "Buffalo, NY 14260-2500 USA"],
+    mailingAddressLines: ["113I Davis Hall", "Buffalo, NY 14260-2500 USA"],
     socialLinks: [],
     pronouns: "",
     primaryAppointment: "Assistant",
@@ -600,7 +558,8 @@ export const facultyMockData = [
         termCode: "2027SP",
         reductionType: "Special Assignment",
         reductionAmount: 0.25,
-        reason: "Special assignment related to accreditation preparation and departmental reporting.",
+        reason:
+          "Special assignment related to accreditation preparation and departmental reporting.",
         approvalDocumentId: "",
         createdAt: "2026-03-25",
       },
@@ -609,7 +568,8 @@ export const facultyMockData = [
         termCode: "2026SP",
         reductionType: "Research Release",
         reductionAmount: 0.5,
-        reason: "Research release granted for major proposal development and manuscript preparation.",
+        reason:
+          "Research release granted for major proposal development and manuscript preparation.",
         approvalDocumentId: "",
         createdAt: "2026-03-25",
       },

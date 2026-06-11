@@ -232,16 +232,22 @@ export function getBiannualCarryInSlots(
 
     const prefix = semester === "fall" ? "fall" : "sp";
     carryIn[semester] = [
-      ...Array.from({ length: deferredCount }, (): SemesterSlot => ({
-        id: genId(prefix),
-        status: "Teaching",
-        comment: "Biannual",
-      })),
-      ...Array.from({ length: teachingBiannualCount }, (): SemesterSlot => ({
-        id: genId(prefix),
-        status: "Not Teaching",
-        comment: "Deferred or Taught Biannual",
-      })),
+      ...Array.from(
+        { length: deferredCount },
+        (): SemesterSlot => ({
+          id: genId(prefix),
+          status: "Teaching",
+          comment: "Biannual",
+        })
+      ),
+      ...Array.from(
+        { length: teachingBiannualCount },
+        (): SemesterSlot => ({
+          id: genId(prefix),
+          status: "Not Teaching",
+          comment: "Deferred or Taught Biannual",
+        })
+      ),
     ];
   }
 

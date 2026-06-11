@@ -331,7 +331,13 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                 className={`cp-validation-banner cp-validation-banner-${warning.type}`}
                 role="alert"
               >
-                <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+                <svg
+                  viewBox="0 0 16 16"
+                  width="14"
+                  height="14"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
                   <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566ZM8 5a.905.905 0 0 1 .9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5Zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
                 </svg>
                 {warning.message}
@@ -407,7 +413,13 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
 
                   {isCurrentYearLocked && (
                     <div className="cp-readonly-notice" role="status">
-                      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+                      <svg
+                        viewBox="0 0 16 16"
+                        width="14"
+                        height="14"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
                         <path d="M11.5 7V5.5a3.5 3.5 0 0 0-7 0V7H3v7.5h10V7h-1.5ZM6 5.5a2 2 0 1 1 4 0V7H6V5.5Z" />
                       </svg>
                       Viewing read-only data for {selectedYear}
@@ -423,7 +435,11 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                   />
 
                   <div className="cp-tab-shell">
-                    <div className="cp-tab-list" role="tablist" aria-label="Course preference sections">
+                    <div
+                      className="cp-tab-list"
+                      role="tablist"
+                      aria-label="Course preference sections"
+                    >
                       <button
                         type="button"
                         role="tab"

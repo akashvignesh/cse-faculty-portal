@@ -46,9 +46,7 @@ const globalCache = globalThis as unknown as { __cfpKnex?: Knex };
 /** Lazily creates the shared knex instance. Throws in local (mock) mode. */
 export function getDb(): Knex {
   if (!isDbMode) {
-    throw new Error(
-      "Database access requires FACULTY_DATA_MODE=db (current mode is local/mock)."
-    );
+    throw new Error("Database access requires FACULTY_DATA_MODE=db (current mode is local/mock).");
   }
   if (!globalCache.__cfpKnex) {
     globalCache.__cfpKnex = createKnex();

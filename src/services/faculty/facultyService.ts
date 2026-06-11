@@ -13,9 +13,9 @@ export interface LoadFacultyOptions {
   fetchImpl?: typeof fetch;
 }
 
-export async function loadFacultyRecords({
-  fetchImpl = fetch,
-}: LoadFacultyOptions = {}): Promise<Faculty[]> {
+export async function loadFacultyRecords({ fetchImpl = fetch }: LoadFacultyOptions = {}): Promise<
+  Faculty[]
+> {
   const response = await fetchImpl(FACULTY_LIST_URL, {
     method: "GET",
     headers: { Accept: "application/json" },

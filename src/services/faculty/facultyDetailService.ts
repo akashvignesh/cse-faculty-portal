@@ -69,8 +69,7 @@ export async function fetchCoursePreferences(idOrUserid: string): Promise<Course
       teachingPreferenceId: preference.courseId || String(index + 1),
       termCode: preference.termCode ?? "",
       courseCode: separatorIndex > 0 ? courseName.slice(0, separatorIndex) : preference.courseId,
-      preferredCourseName:
-        separatorIndex > 0 ? courseName.slice(separatorIndex + 1) : courseName,
+      preferredCourseName: separatorIndex > 0 ? courseName.slice(separatorIndex + 1) : courseName,
       priority: preference.pref,
     };
   });

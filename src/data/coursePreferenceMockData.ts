@@ -1,12 +1,7 @@
 // Mock data for the redesigned Course Preference feature.
 // This is frontend-only mock state; no backend persistence.
 
-import type {
-  PlannerCoursePreference,
-  SemesterSlot,
-  SlotStatus,
-  YearData,
-} from "../types/faculty";
+import type { PlannerCoursePreference, SemesterSlot, SlotStatus, YearData } from "../types/faculty";
 
 export interface AcademicYearOption {
   year: string;
@@ -113,10 +108,14 @@ export const FACULTY_YEAR_DATA: Record<string, Record<string, YearData>> = {
       ],
     },
     "2024-2025": {
-      ...profTrackYear("js-24", ["Associate Chair"], [
-        pref("js-24-cp1", "CSE521", "Operating Systems", 5),
-        pref("js-24-cp2", "CSE486", "Distributed Systems", 4),
-      ]),
+      ...profTrackYear(
+        "js-24",
+        ["Associate Chair"],
+        [
+          pref("js-24-cp1", "CSE521", "Operating Systems", 5),
+          pref("js-24-cp2", "CSE486", "Distributed Systems", 4),
+        ]
+      ),
       requestedLoad: { summer: 0, fall: 1, spring: 1 },
       semesterPlan: {
         summer: [],
@@ -124,9 +123,7 @@ export const FACULTY_YEAR_DATA: Record<string, Record<string, YearData>> = {
         spring: [slot("js-24-s1", "Not Teaching", "Course Release")],
       },
     },
-    "2023-2024": profTrackYear("js-23", [], [
-      pref("js-23-cp1", "CSE521", "Operating Systems", 5),
-    ]),
+    "2023-2024": profTrackYear("js-23", [], [pref("js-23-cp1", "CSE521", "Operating Systems", 5)]),
     // 2022-2023 is the skip (deferred) year so 2023-2024 gets Teaching + Biannual
     "2022-2023": profTrackYear("js-22", [], [], true),
   },
@@ -186,22 +183,26 @@ export const FACULTY_YEAR_DATA: Record<string, Record<string, YearData>> = {
   },
 
   roshana: {
-    "2025-2026": profTrackYear("ra-25", ["Chair"], [
-      pref("ra-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
-      pref("ra-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
-      pref("ra-cp3", "CSE667", "667LEC-Advanced Topics in Computational Linguistics", 4),
-    ]),
-    "2024-2025": profTrackYear("ra-24", ["Chair"], [
-      pref("ra-24-cp1", "CSE474", "Introduction to Machine Learning", 5),
-    ]),
+    "2025-2026": profTrackYear(
+      "ra-25",
+      ["Chair"],
+      [
+        pref("ra-cp1", "CSE474", "474LEC-Introduction to Machine Learning", 5),
+        pref("ra-cp2", "CSE574", "574LEC-Introduction to Machine Learning", 5),
+        pref("ra-cp3", "CSE667", "667LEC-Advanced Topics in Computational Linguistics", 4),
+      ]
+    ),
+    "2024-2025": profTrackYear(
+      "ra-24",
+      ["Chair"],
+      [pref("ra-24-cp1", "CSE474", "Introduction to Machine Learning", 5)]
+    ),
     // Pre-chair years follow the same alternating pattern
     "2023-2024": profTrackYear("ra-23", [], [], false),
     "2022-2023": profTrackYear("ra-22", [], [], true),
   },
 };
 
-export function getInitialYearDataForFaculty(
-  userid: string
-): Record<string, YearData> | null {
+export function getInitialYearDataForFaculty(userid: string): Record<string, YearData> | null {
   return FACULTY_YEAR_DATA[userid] ?? null;
 }

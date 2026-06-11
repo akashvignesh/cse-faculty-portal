@@ -41,7 +41,9 @@ export default function SemesterPlanningTable({
       rows.map((r) => {
         if (r.id !== id) return r;
         const updated: SemesterSlot =
-          field === "status" ? { ...r, status: value as SlotStatus, comment: "" } : { ...r, comment: value };
+          field === "status"
+            ? { ...r, status: value as SlotStatus, comment: "" }
+            : { ...r, comment: value };
         return updated;
       })
     );

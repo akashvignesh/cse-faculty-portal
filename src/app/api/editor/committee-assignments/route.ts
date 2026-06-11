@@ -16,9 +16,7 @@ const ROLE_CODES = ["P", "C", "V", "X", "A"];
 function buildEditor(): Editor {
   return createEditor(TABLE, "assignment_id")
     .fields(
-      new Field(`${TABLE}.catalog_id`)
-        .validator(Validate.notEmpty())
-        .validator(Validate.numeric()),
+      new Field(`${TABLE}.catalog_id`).validator(Validate.notEmpty()).validator(Validate.numeric()),
       new Field(`${TABLE}.userid`).validator(Validate.notEmpty()).validator(Validate.maxLen(8)),
       new Field(`${TABLE}.role_code`)
         .validator(Validate.notEmpty())

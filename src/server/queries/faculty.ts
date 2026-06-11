@@ -168,9 +168,7 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
       db
         .select("principal")
         .from("dce.person_number")
-        .whereRaw("CONVERT(person_number USING utf8mb4) = CONVERT(? USING utf8mb4)", [
-          personNumber,
-        ])
+        .whereRaw("CONVERT(person_number USING utf8mb4) = CONVERT(? USING utf8mb4)", [personNumber])
         .first<{ principal: string } | undefined>(),
       db
         .select("a.official_job_title as title", "a.appointment_type as rankName")
