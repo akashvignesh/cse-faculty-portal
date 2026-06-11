@@ -1,0 +1,6 @@
+node_modules/
+.next/
+public/
+cse-style/
+package-lock.json
+db/schema-reference.csv
