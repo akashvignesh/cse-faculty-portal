@@ -16,6 +16,8 @@ const ROLE_CODES = ["P", "C", "V", "X", "A"];
 function buildEditor(): Editor {
   return createEditor(TABLE, "assignment_id")
     .fields(
+      // Pkey as read-only field so GET rows are self-describing.
+      new Field(`${TABLE}.assignment_id`).set(false),
       new Field(`${TABLE}.catalog_id`).validator(Validate.notEmpty()).validator(Validate.numeric()),
       new Field(`${TABLE}.userid`).validator(Validate.notEmpty()).validator(Validate.maxLen(8)),
       new Field(`${TABLE}.role_code`)

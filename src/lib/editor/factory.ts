@@ -47,8 +47,16 @@ export function auditFields(table: string): Field[] {
 
 type ValidatorResult = true | string;
 
-/** Field validator for the 9-char academic year convention ("2025-2026"). */
+/**
+ * Field validator for the 9-char academic year convention ("2025-2026").
+ * Absent/empty values pass — Editor runs validators even for fields that were
+ * not submitted (e.g. partial edits); requiredness on create is enforced by
+ * the preceding Validate.notEmpty().
+ */
 export async function academicYearValidator(value: unknown): Promise<ValidatorResult> {
+  if (value === undefined || value === null || value === "") {
+    return true;
+  }
   const text = typeof value === "string" ? value.trim() : "";
   const match = /^(\d{4})-(\d{4})$/.exec(text);
   if (!match || Number(match[2]) !== Number(match[1]) + 1) {

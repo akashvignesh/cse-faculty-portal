@@ -86,7 +86,7 @@ function uiToDbCode(uiCode: MatrixCellCode): string {
 interface CatalogRow {
   DT_RowId?: string;
   cfp_committee_catalog?: {
-    catalog_id: number | string;
+    catalog_id?: number | string;
     name: string;
     kind: string | null;
     service_category: number | string | null;
@@ -163,17 +163,18 @@ export async function loadMatrixData(academicYear: string): Promise<MatrixData> 
   const categoryPoints = await fetchCategoryPoints();
 
   const columns: MatrixColumn[] = catalogRows
-    .map((row) => row.cfp_committee_catalog)
-    .filter((catalog): catalog is NonNullable<CatalogRow["cfp_committee_catalog"]> =>
-      Boolean(catalog)
+    .filter((row): row is CatalogRow & { cfp_committee_catalog: object } =>
+      Boolean(row.cfp_committee_catalog)
     )
-    .map((catalog) => {
+    .map((row) => {
+      const catalog = row.cfp_committee_catalog as NonNullable<CatalogRow["cfp_committee_catalog"]>;
       const category =
         catalog.service_category === null || catalog.service_category === ""
           ? null
           : Number(catalog.service_category);
       return {
-        id: Number(catalog.catalog_id),
+        // Prefer the declared pkey field; fall back to DT_RowId ("row_<id>").
+        id: Number(catalog.catalog_id ?? row.DT_RowId?.replace(/^row_/, "")),
         name: catalog.name,
         type: (catalog.kind === "leadership" ? "role" : "committee") as "role" | "committee",
         category,

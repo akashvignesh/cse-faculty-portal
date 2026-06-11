@@ -19,6 +19,8 @@ const SLOT_STATUSES = ["Teaching", "Not Teaching"];
 function buildEditor(): Editor {
   return createEditor(TABLE, "semester_plan_id")
     .fields(
+      // Pkey as read-only field so GET rows are self-describing.
+      new Field(`${TABLE}.semester_plan_id`).set(false),
       new Field(`${TABLE}.course_plan_id`)
         .validator(Validate.notEmpty())
         .validator(Validate.numeric()),

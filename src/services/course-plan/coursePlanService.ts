@@ -24,12 +24,20 @@ const SLOT_TABLE = "cfp_faculty_semester_plan";
 interface PlanRow {
   DT_RowId?: string;
   cfp_faculty_course_plan?: {
-    course_plan_id: number | string;
+    course_plan_id?: number | string;
     person_number: string;
     academic_year: string;
     faculty_type: string | null;
     locked: number | string;
   };
+}
+
+/** Pkey from the declared field, falling back to DT_RowId ("row_<id>"). */
+function planIdFromRow(row: PlanRow): number | null {
+  const declared = row.cfp_faculty_course_plan?.course_plan_id;
+  if (declared !== undefined && declared !== null && declared !== "") return Number(declared);
+  const fromRowId = row.DT_RowId?.replace(/^row_/, "");
+  return fromRowId ? Number(fromRowId) : null;
 }
 
 interface SlotRow {
@@ -70,13 +78,15 @@ export async function loadStoredYearPlan(
     throw error;
   }
 
-  const header = planRows[0]?.cfp_faculty_course_plan;
-  if (!header) {
+  const headerRow = planRows[0];
+  const header = headerRow?.cfp_faculty_course_plan;
+  const headerId = headerRow ? planIdFromRow(headerRow) : null;
+  if (!header || headerId === null) {
     return { available: true, plan: null };
   }
 
   const slotRows = await editorLoad<SlotRow>(
-    `${SLOT_URL}?course_plan_id=${encodeURIComponent(String(header.course_plan_id))}`
+    `${SLOT_URL}?course_plan_id=${encodeURIComponent(String(headerId))}`
   );
 
   const semesterPlan: SemesterPlan = { summer: [], fall: [], spring: [] };
@@ -96,7 +106,7 @@ export async function loadStoredYearPlan(
   return {
     available: true,
     plan: {
-      coursePlanId: Number(header.course_plan_id),
+      coursePlanId: headerId,
       facultyType: (header.faculty_type as FacultyType) ?? null,
       locked: Number(header.locked) === 1,
       semesterPlan,
@@ -136,11 +146,12 @@ export async function saveYearPlan(input: SaveYearPlanInput): Promise<SaveYearPl
         },
       },
     });
-    const header = created.data?.[0]?.cfp_faculty_course_plan;
-    if (!header) {
+    const createdRow = created.data?.[0];
+    const createdId = createdRow ? planIdFromRow(createdRow as PlanRow) : null;
+    if (createdId === null) {
       throw new EditorError("Course plan creation returned no row");
     }
-    coursePlanId = Number(header.course_plan_id);
+    coursePlanId = createdId;
   } else if (storedPlan && storedPlan.facultyType !== facultyType) {
     await editorSubmit(PLAN_URL, "edit", {
       [`row_${coursePlanId}`]: { [PLAN_TABLE]: { faculty_type: facultyType } },

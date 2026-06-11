@@ -17,6 +17,8 @@ const FACULTY_TYPES = ["Prof Track", "Lecture 10", "Lecture 12"];
 function buildEditor(): Editor {
   return createEditor(TABLE, "course_plan_id")
     .fields(
+      // Pkey as read-only field so GET rows are self-describing.
+      new Field(`${TABLE}.course_plan_id`).set(false),
       new Field(`${TABLE}.person_number`)
         .validator(Validate.notEmpty())
         .validator(Validate.maxLen(8)),

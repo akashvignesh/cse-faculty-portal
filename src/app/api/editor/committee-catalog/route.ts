@@ -12,6 +12,8 @@ const KINDS = ["leadership", "committee", "taskforce", "seas", "pool"];
 
 function buildEditor(): Editor {
   return createEditor(TABLE, "catalog_id").fields(
+    // Pkey as read-only field so GET rows are self-describing.
+    new Field(`${TABLE}.catalog_id`).set(false),
     new Field(`${TABLE}.source_committee_id`).validator(Validate.numeric()),
     new Field(`${TABLE}.name`).validator(Validate.notEmpty()).validator(Validate.maxLen(255)),
     new Field(`${TABLE}.kind`).validator(Validate.values(KINDS)),

@@ -14,6 +14,8 @@ const TABLE = "cfp_committee_service_summary";
 
 function buildEditor(): Editor {
   return createEditor(TABLE, "service_summary_id").fields(
+    // Pkey as read-only field so GET rows are self-describing.
+    new Field(`${TABLE}.service_summary_id`).set(false),
     new Field(`${TABLE}.userid`).validator(Validate.notEmpty()).validator(Validate.maxLen(8)),
     new Field(`${TABLE}.academic_year`)
       .validator(Validate.notEmpty())
