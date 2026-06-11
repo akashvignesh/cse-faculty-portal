@@ -1,12 +1,13 @@
-// Term-code helpers for the university's [century][YY][term] convention,
-// matching the Java backend's decoder: fullYear = (centuryDigit + 18) * 100 + YY.
-// So Fall 2025 = "2259" (century digit 2 → 20xx), Spring 2026 = "2261".
+// Term-code helpers for the university's [century][YY][term] convention:
+// fullYear = (centuryDigit + 18) * 100 + YY. Confirmed against a live
+// classschedule_v dump: 2259 → Fall 2025 (start 2025-08-25), 2261 → Spring
+// 2026, 2266 → Summer 2026, 1991 → Spring 1999. (The migration script's
+// comment claiming "Fall 2025 = '3259'" is wrong.)
 //
-// NOTE: a comment in the DB migration script claims "20xx=3 → Fall 2025='3259'";
-// that contradicts both the Java decoder and PeopleSoft convention. The decoder
-// below follows the Java backend, which runs against the live ps_rpt data.
-// Verify against `SELECT DISTINCT termsourcekey FROM ps_rpt.classschedule_v`
-// before relying on encoding for new rows.
+// Term digits in the live data: 1 = spring, 6 = summer, 9 = fall, and
+// 0 = winter session (e.g. 2270 runs 2026-12-24 → 2027-01-15). Winter rows
+// are intentionally not decoded — teaching history buckets only
+// spring/summer/fall, matching the Java backend, which skipped them too.
 
 import type { TermKey } from "@/types/faculty";
 

@@ -15,10 +15,22 @@ describe("decodeTermCode", () => {
     expect(decodeTermCode("1999")).toEqual({ year: 1999, term: "fall" });
   });
 
-  it("rejects malformed and unknown-term codes", () => {
+  it("matches term codes from the live class-schedule dump (code → section start date)", () => {
+    // termsourcekey / startdate pairs taken verbatim from classschedule_v:
+    expect(decodeTermCode("2259")).toEqual({ year: 2025, term: "fall" }); // 2025-08-25
+    expect(decodeTermCode("2249")).toEqual({ year: 2024, term: "fall" }); // 2024-08-26
+    expect(decodeTermCode("2251")).toEqual({ year: 2025, term: "spring" }); // 2025-01-22
+    expect(decodeTermCode("2271")).toEqual({ year: 2027, term: "spring" }); // 2027-01-20
+    expect(decodeTermCode("2256")).toEqual({ year: 2025, term: "summer" }); // 2025-05-27
+    expect(decodeTermCode("1991")).toEqual({ year: 1999, term: "spring" }); // 1999-01-19
+    expect(decodeTermCode("2096")).toEqual({ year: 2009, term: "summer" }); // 2009-05-18
+  });
+
+  it("rejects malformed, unknown-term, and winter-session codes", () => {
     expect(decodeTermCode("225")).toBeNull();
     expect(decodeTermCode("22X9")).toBeNull();
     expect(decodeTermCode("2253")).toBeNull(); // 3 is not a term digit
+    expect(decodeTermCode("2270")).toBeNull(); // 0 = winter session, intentionally skipped
     expect(decodeTermCode(null)).toBeNull();
     expect(decodeTermCode(2259)).toBeNull();
   });
