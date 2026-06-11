@@ -138,8 +138,21 @@ function validatePref(pref: unknown, courseName: string): number | null {
       `pref for "${courseName}" must be an integer from 0 (Not Qualified) to 5, or null to delete`
     );
   }
+  // The live table still carries chk_pref_range CHECK (pref BETWEEN 0 AND 4),
+  // although the design scale is 0..5. Fail with a clear message instead of a
+  // raw constraint violation until the DBA widens the CHECK.
+  if (value === 5) {
+    throw new BadRequestError(
+      `pref=5 for "${courseName}" is currently blocked by the database CHECK ` +
+        "chk_pref_range (0–4) on people.cfp_faculty_teaching_prefs. " +
+        "Widen the CHECK to 0–5 to enable the full rating scale."
+    );
+  }
   return value;
 }
+
+/** Live CHECK: regexp_like(term_code, '^[0-9]{3}[569]$'). */
+const TERM_CODE_PATTERN = /^[0-9]{3}[569]$/;
 
 export async function saveTeachingPreferences(
   idOrUserid: string,
@@ -168,6 +181,17 @@ export async function saveTeachingPreferences(
   const db = getDb();
   const editor = getCurrentUser().userid;
   const termCode = request.termCode?.trim() || null;
+  // term_code is NOT NULL with a format CHECK on the live table.
+  if (!termCode) {
+    throw new BadRequestError(
+      "termCode is required (people.cfp_faculty_teaching_prefs.term_code is NOT NULL)"
+    );
+  }
+  if (!TERM_CODE_PATTERN.test(termCode)) {
+    throw new BadRequestError(
+      `termCode "${termCode}" violates the database CHECK ^[0-9]{3}[569]$ (last digit must be 5, 6, or 9)`
+    );
+  }
   const processed: SaveTeachingPreferenceResult[] = [];
 
   for (const item of request.preferences) {

@@ -12,10 +12,13 @@ export function looksLikePersonNumber(value: string): boolean {
 }
 
 export async function useridForPersonNumber(personNumber: string): Promise<string | null> {
+  // (person_number, principal) is a composite PK — a person can map to
+  // several principals; pick deterministically.
   const row = await getDb()
     .select("principal")
     .from("dce.person_number")
     .where("person_number", personNumber)
+    .orderBy("principal", "asc")
     .first<{ principal: string } | undefined>();
   return row?.principal?.trim() || null;
 }
@@ -25,6 +28,7 @@ export async function personNumberForUserid(userid: string): Promise<string | nu
     .select("person_number")
     .from("dce.person_number")
     .where("principal", userid)
+    .orderBy("person_number", "asc")
     .first<{ person_number: string } | undefined>();
   return row?.person_number?.trim() || null;
 }

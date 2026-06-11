@@ -68,6 +68,22 @@ export function withErrorHandler<Ctx>(handler: RouteHandler<Ctx>): RouteHandler<
           "Database is unavailable — is the SSH tunnel to the university MySQL server up?"
         );
       }
+      const errno = (error as { errno?: number })?.errno;
+      if (errno === 3819) {
+        // ER_CHECK_CONSTRAINT_VIOLATED
+        return fail(400, "Value rejected by a database CHECK constraint.");
+      }
+      if (errno === 1062) {
+        // ER_DUP_ENTRY
+        return fail(409, "A row with this key already exists (unique constraint).");
+      }
+      if (errno === 1146) {
+        // ER_NO_SUCH_TABLE
+        return fail(
+          500,
+          "A required database table is missing — has the cfp_* migration been applied?"
+        );
+      }
       console.error(`[api] Unhandled error for ${request.method} ${request.url}:`, error);
       return fail(500, "Internal server error");
     }
