@@ -258,6 +258,7 @@ export function mapFacultyRecord(record: RawFacultyRecord, index: number): Facul
     officeAddress: normalizeField(
       pickOfficeAddress(record) || formatOfficeAddress(contactOfficeAddress)
     ),
+    campusOffice: normalizeField(record?.campusOffice ?? record?.campus_office),
     personNumber: normalizeField(record?.personNumber ?? record?.person_number),
     standardLoad: normalizeField(record?.standardLoad ?? record?.standard_load),
     nextPromotionDate: normalizeField(record?.nextPromotionDate ?? record?.next_promotion_date),

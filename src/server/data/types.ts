@@ -91,6 +91,8 @@ export interface FacultyDataSource {
   listFaculty(query: FacultyListQuery): Promise<PaginatedResponse<RawFacultyRecord>>;
   /** Accepts an 8-digit person number or a userid. Null when not found. */
   getFacultyDetail(idOrUserid: string): Promise<RawFacultyRecord | null>;
+  /** Faculty photo blob + MIME, or null when the person has no photo. */
+  getFacultyPhoto(idOrUserid: string): Promise<{ image: Buffer; mime: string } | null>;
   getTeachingHistory(facultySourceKey: string): Promise<TeachingHistoryResponse | null>;
   getTeachingPreferences(userid: string): Promise<TeachingPreferencesResponse>;
   saveTeachingPreferences(

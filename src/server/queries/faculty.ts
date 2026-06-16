@@ -77,7 +77,13 @@ export async function listFaculty(
   const db = getDb();
   const tokens = query.search.trim().split(/\s+/).filter(Boolean);
 
-  const base = db("cfp_faculty as f").joinRaw(NAME_JOIN);
+  // The roster is every person in cfp_faculty who ALSO holds a cfp_appointments
+  // row. The INNER JOIN enforces that filter (cfp_appointments.person_number is
+  // its PK, so it stays one row per person) and keeps the COUNT correct for
+  // pagination. Both person_number columns are utf8mb4 — no CONVERT needed here.
+  const base = db("cfp_faculty as f")
+    .join("cfp_appointments as app", "app.person_number", "f.person_number")
+    .joinRaw(NAME_JOIN);
   for (const token of tokens) {
     void base.whereRaw("COALESCE(n.name_display, f.person_number) LIKE ?", [`%${token}%`]);
   }
@@ -88,37 +94,22 @@ export async function listFaculty(
     .then((rows) => rows[0]);
   const totalElements = Number(countRow?.total ?? 0);
 
-  const rows: (RawFacultyRecord & Partial<AddressRow>)[] = await base
+  const rows: RawFacultyRecord[] = await base
     .clone()
     .joinRaw(DPN_JOIN)
-    .leftJoin("cfp_appointments as app", "app.person_number", "f.person_number")
-    .leftJoin("cfp_faculty_primary_email as pe", "pe.person_number", "f.person_number")
-    .leftJoin("cfp_faculty_primary_address as pa", "pa.person_number", "f.person_number")
     .select(
       "f.person_number as personNumber",
       db.raw("COALESCE(n.name_display, f.person_number) as fullName"),
       "dpn.principal as userid",
-      db.raw("COALESCE(app.in_house_title, app.official_job_title) as title"),
-      "app.appointment_type as rank",
-      "app.standard_course_load as standardLoad",
-      "pe.email_address as primaryEmail",
-      "pa.address_line1 as line1",
-      "pa.address_line2 as line2",
-      "pa.city as city",
-      "pa.state_province as state",
-      "pa.postal_code as postalCode",
-      "pa.country as country"
+      // Email is derived from the principal: <principal>@buffalo.edu. A NULL
+      // principal yields a NULL email, which the mapper normalizes to "".
+      db.raw("CONCAT(dpn.principal, '@buffalo.edu') as primaryEmail")
     )
     .orderByRaw("n.name_display IS NULL, n.name_display ASC, f.person_number ASC")
     .limit(query.size)
     .offset(query.page * query.size);
 
-  const content = rows.map(({ line1, line2, city, state, postalCode, country, ...row }) => ({
-    ...row,
-    officeAddress: formatOfficeAddress({ line1, line2, city, state, postalCode, country }),
-  }));
-
-  return paginate(content, query.page, query.size, totalElements);
+  return paginate(rows, query.page, query.size, totalElements);
 }
 
 interface StudentRow {
@@ -159,6 +150,41 @@ async function fetchStudents(facultyUserid: string | null): Promise<RawFacultyRe
   }));
 }
 
+/**
+ * Campus desk location from the facilities schema. occupants.userid is a
+ * principal (per the ER model: occupants.userid -> person_number.principal),
+ * joined to buildings on building_abbr = bldabr for the human-readable building
+ * name. A person may hold several desks — pick one deterministically.
+ */
+async function fetchCampusOffice(principal: string | null): Promise<string | null> {
+  if (!principal) return null;
+  const db = getDb();
+
+  const result = await db.raw<
+    [{ buildingName: string | null; bldabr: string | null; room: string | null }[], unknown]
+  >(
+    `
+    SELECT b.building_name AS buildingName,
+           o.bldabr        AS bldabr,
+           o.room          AS room
+    FROM facilities.occupants o
+    LEFT JOIN facilities.buildings b
+      ON CONVERT(b.building_abbr USING utf8mb4) = CONVERT(o.bldabr USING utf8mb4)
+    WHERE CONVERT(o.userid USING utf8mb4) = CONVERT(? USING utf8mb4)
+    ORDER BY o.room IS NULL, o.room ASC
+    LIMIT 1
+    `,
+    [principal]
+  );
+
+  const row = (result[0] ?? [])[0];
+  if (!row) return null;
+  const place = row.buildingName?.trim() || row.bldabr?.trim() || null;
+  const room = row.room?.trim() || null;
+  if (place && room) return `${place} ${room}`;
+  return place ?? room;
+}
+
 export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRecord | null> {
   const db = getDb();
   const personNumber = await resolvePersonNumber(idOrUserid);
@@ -172,7 +198,7 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
 
   if (!faculty) return null;
 
-  const [name, userid, appointment, email, phone, address, researchAreas, reductions, leaves] =
+  const [name, userid, appointment, email, address, researchAreas, leaves, awards] =
     await Promise.all([
       db
         .select("n.name_display as nameDisplay")
@@ -182,9 +208,7 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
       db
         .select("principal")
         .from("dce.person_number")
-        .whereRaw("CONVERT(person_number USING utf8mb4) = CONVERT(? USING utf8mb4)", [
-          personNumber,
-        ])
+        .whereRaw("CONVERT(person_number USING utf8mb4) = CONVERT(? USING utf8mb4)", [personNumber])
         .orderBy("principal", "asc")
         .first<{ principal: string } | undefined>(),
       db
@@ -213,11 +237,6 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
         .where("pe.person_number", personNumber)
         .first<{ emailAddress: string } | undefined>(),
       db
-        .select("pp.phone_number as phoneNumber")
-        .from("cfp_faculty_primary_phone_number as pp")
-        .where("pp.person_number", personNumber)
-        .first<{ phoneNumber: string } | undefined>(),
-      db
         .select(
           "pa.address_line1 as line1",
           "pa.address_line2 as line2",
@@ -237,21 +256,6 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
         .orderBy("fra.faculty_research_area_id", "asc"),
       db
         .select(
-          "tr.term_code as termCode",
-          "tr.reduction_type as reductionType",
-          "tr.reduction_load as reductionAmount",
-          "tr.reason as reason",
-          "tr.approval_document_id as approvalDocumentId",
-          "tr.dt as createdAt"
-        )
-        .from("cfp_teaching_reductions as tr")
-        .where("tr.person_number", personNumber)
-        .orderBy([
-          { column: "tr.term_code", order: "desc" },
-          { column: "tr.teaching_reduction_id", order: "desc" },
-        ]),
-      db
-        .select(
           "fl.leave_type as leaveType",
           "fl.start_date as startDate",
           "fl.end_date as endDate",
@@ -265,13 +269,28 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
           { column: "fl.start_date", order: "desc" },
           { column: "fl.leave_id", order: "desc" },
         ]),
+      // Research-foundation awards (ubs_rf.award_v, keyed by person_number).
+      // award_v has no sponsor/organization column, so Organization stays blank.
+      db
+        .select(
+          "av.award_number as awardId",
+          "av.title as awardName",
+          db.raw("YEAR(av.award_start) as awardYear")
+        )
+        .from("ubs_rf.award_v as av")
+        .where("av.person_number", personNumber)
+        .orderBy("av.award_start", "desc"),
     ]);
 
   const facultyUserid = userid?.principal?.trim() ?? null;
-  const students = await fetchStudents(facultyUserid);
+  const [students, campusOffice] = await Promise.all([
+    fetchStudents(facultyUserid),
+    fetchCampusOffice(facultyUserid),
+  ]);
 
   return {
     ...faculty,
+    campusOffice,
     fullName: name?.nameDisplay ?? String(faculty.personNumber),
     userid: facultyUserid,
     pronouns: null,
@@ -283,13 +302,48 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
     profilePhotoUrl: null,
     contact: {
       email: email?.emailAddress ?? null,
-      phone: phone?.phoneNumber ?? null,
       officeAddress: toOfficeAddressDto(address),
     },
     officeAddress: formatOfficeAddress(address),
     researchAreas: (researchAreas as { areaName: string }[]).map((row) => row.areaName),
-    teachingReductions: reductions,
+    awards,
     leaveSummary: leaves,
     studentsUnderProfessor: students,
   };
+}
+
+/** Detect image type from the leading magic bytes; default to JPEG. */
+function sniffImageMime(buf: Buffer): string {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf.length >= 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47)
+    return "image/png";
+  if (buf.length >= 3 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return "image/gif";
+  return "image/jpeg";
+}
+
+/**
+ * Faculty photo blob from sunycard.cfp_cse_faculty_photos_v (PK person_number).
+ * Returns null when the person has no photo so the route can 404 and the UI can
+ * fall back to initials.
+ */
+export async function getFacultyPhoto(
+  idOrUserid: string
+): Promise<{ image: Buffer; mime: string } | null> {
+  const personNumber = await resolvePersonNumber(idOrUserid);
+  if (!personNumber) return null;
+
+  const db = getDb();
+  const result = await db.raw<[{ image: Buffer | null }[], unknown]>(
+    `
+    SELECT image
+    FROM sunycard.cfp_cse_faculty_photos_v
+    WHERE CONVERT(person_number USING utf8mb4) = CONVERT(? USING utf8mb4)
+    LIMIT 1
+    `,
+    [personNumber]
+  );
+
+  const image = (result[0] ?? [])[0]?.image ?? null;
+  if (!image || !Buffer.isBuffer(image) || image.length === 0) return null;
+  return { image, mime: sniffImageMime(image) };
 }

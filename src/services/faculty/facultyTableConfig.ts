@@ -61,7 +61,8 @@ export function createFacultyTableConfig(): Record<string, any> {
     autoWidth: false,
     pageLength: 10,
     lengthMenu: [10, 25, 50, 100],
-    order: [[0, "asc"]],
+    // Sort by the Name column (index 1); Person Number is the first column.
+    order: [[1, "asc"]],
     layout: {
       topStart: {
         className: "faculty-datatable-toolbar faculty-datatable-toolbar-left",

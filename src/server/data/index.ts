@@ -15,6 +15,7 @@ async function dbSource(): Promise<FacultyDataSource> {
   return {
     listFaculty: faculty.listFaculty,
     getFacultyDetail: faculty.getFacultyDetail,
+    getFacultyPhoto: faculty.getFacultyPhoto,
     getTeachingHistory: teachingHistory.getTeachingHistory,
     getTeachingPreferences: teachingPrefs.getTeachingPreferences,
     saveTeachingPreferences: teachingPrefs.saveTeachingPreferences,

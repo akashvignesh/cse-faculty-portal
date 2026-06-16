@@ -22,15 +22,37 @@ Browser (components/, services/)            ← fetch JSON only, never SQL
 Connection: `src/lib/db.ts` — knex singleton, mysql2, default schema
 `ubs_emp`, `dateStrings: true`, pool max 5. Cross-schema reads use qualified
 names (`people.*`, `dce.*`, `ps_rpt.*`, `committees.*`) and `CONVERT(...
-USING utf8mb4)` on both sides of joins (legacy schemas are latin1).
+USING utf8mb4)` on both sides of joins because charsets are mixed: the
+`cfp_*` tables in `ubs_emp` are `utf8mb4_0900_ai_ci`, while the legacy
+schemas they join to are `latin1` (`ps_rpt.*`, `dce.person_number`,
+`committees.*`, `people.phd_advisors`) or `utf8`
+(`people.cfp_faculty_teaching_prefs`).
+
+> **Schema source of truth.** Column types, keys, and declared FKs in this
+> document are taken from the live-DB export committed under
+> [`scripts/db-schema/data/`](../scripts/db-schema/data/) (snapshot
+> `2026-06-14`). That export captures columns, per-column key flags
+> (PRI/UNI/MUL), declared foreign keys, and view column lists. It does **not**
+> capture composite UNIQUE indexes or CHECK constraints — those are sourced
+> from the migration DDL / app code and are called out as such below.
 
 ---
 
 ## 1. Identity bridge — `src/server/queries/identity.ts`
 
-`dce.person_number` maps `person_number` ↔ `principal` (userid). Composite
-PK means several principals per person; all lookups `ORDER BY` for
-determinism.
+`dce.person_number` maps `person_number` ↔ `principal` (userid). The PK is
+the composite `(person_number, principal)`, so several principals per person
+are allowed; all lookups `ORDER BY` for determinism.
+
+```sql
+-- dce.person_number (latin1)
+person_number  varchar(8)  NOT NULL,   -- PK part 1
+principal      varchar(8)  NOT NULL,   -- PK part 2 (the userid)
+status         char(1)     NULL,
+unix_uid       int         NULL,
+dt             datetime    NULL
+-- PRIMARY KEY (person_number, principal)
+```
 
 | Function                                | SQL                                                                                              | Used by            |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------ |
@@ -49,17 +71,11 @@ Route: `GET /api/v1/faculty?page=&size=&search=`
 SELECT f.person_number                                   AS personNumber,
        COALESCE(n.name_display, f.person_number)         AS fullName,
        dpn.principal                                     AS userid,
-       COALESCE(app.in_house_title, app.official_job_title) AS title,
-       app.appointment_type                              AS rank,
-       app.standard_course_load                          AS standardLoad,
-       pe.email_address                                  AS primaryEmail,
        pa.address_line1 ... pa.country                   -- assembled in TS
 FROM cfp_faculty f
 LEFT JOIN ps_rpt.ub_display_name_v n   ON n.emplid = f.person_number      -- CONVERT both sides
 LEFT JOIN (SELECT person_number, MIN(principal) principal
            FROM dce.person_number GROUP BY person_number) dpn ON ...      -- dedup principals
-LEFT JOIN cfp_appointments app          ON app.person_number = f.person_number   -- 1 row per person
-LEFT JOIN cfp_faculty_primary_email pe  ON pe.person_number  = f.person_number
 LEFT JOIN cfp_faculty_primary_address pa ON pa.person_number = f.person_number
 WHERE COALESCE(n.name_display, f.person_number) LIKE '%token%'  -- per search token
 ORDER BY n.name_display IS NULL, n.name_display, f.person_number
@@ -68,25 +84,77 @@ LIMIT ? OFFSET ?
 
 Plus a `COUNT(*)` over the same `FROM`/`WHERE` for pagination. Office
 address is formatted in TS (`formatOfficeAddress`). The aliases are the
-wire field names the frontend mapper consumes.
+wire field names the frontend mapper consumes. The roster renders only
+Name/Userid/Office Address, so `cfp_appointments` (title/rank/standardLoad)
+and `cfp_faculty_primary_email` are intentionally **not** joined here.
 
 ## 3. Faculty detail — `getFacultyDetail` in `src/server/queries/faculty.ts:162`
 
-Route: `GET /api/v1/faculty/[id]`. One anchor query + 8 parallel queries,
-each keyed by the resolved `person_number`:
+Route: `GET /api/v1/faculty/[id]`. One anchor query + **8 parallel**
+person-number-keyed queries (`Promise.all`), then **2 userid-keyed**
+follow-ups (students + campus office) once the principal is known:
 
-| #      | Table (line)                                                    | Columns → wire aliases                                                                                                                                        |
+| #      | Table                                                    | Columns → wire aliases                                                                                                                                        |
 | ------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| anchor | `cfp_faculty` (169)                                             | `person_number→personNumber`, `cv_document_id→cvDocumentId`                                                                                                   |
-| 1      | `ps_rpt.ub_display_name_v` (≈178)                               | `name_display→fullName` (fallback personNumber)                                                                                                               |
-| 2      | `dce.person_number` (184)                                       | `principal→userid`                                                                                                                                            |
-| 3      | `cfp_appointments` (198)                                        | `official_job_title→title`, `appointment_type→rank`, `in_house_title→titleLine`, `standard_course_load→standardLoad`, `next_promotion_date→nextPromotionDate` |
-| 4      | `cfp_faculty_primary_email` (212)                               | `email_address→contact.email`                                                                                                                                 |
-| 5      | `cfp_faculty_primary_phone_number` (217)                        | `phone_number→contact.phone`                                                                                                                                  |
-| 6      | `cfp_faculty_primary_address` (229)                             | `address_line1/2, city, state_province, postal_code, country → contact.officeAddress{}` + formatted `officeAddress`                                           |
-| 7      | `cfp_faculty_research_areas` ⋈ `cfp_research_area_master` (234) | `area_name → researchAreas[]`                                                                                                                                 |
-| 8      | `cfp_teaching_reductions` (247)                                 | `term_code→termCode`, `reduction_type→reductionType`, `reduction_load→reductionAmount`, `reason`, `approval_document_id→approvalDocumentId`, `dt→createdAt`   |
-| 9      | `cfp_faculty_leave` (262)                                       | `leave_type→leaveType`, `start_date`, `end_date`, `location`, `reason`, `backup_person_number→backupFacultyPersonNumber`                                      |
+| anchor | `cfp_faculty`                                             | `person_number→personNumber`, `cv_document_id→cvDocumentId`                                                                                                   |
+| 1      | `ps_rpt.ub_display_name_v`                               | `name_display→fullName` (fallback personNumber)                                                                                                               |
+| 2      | `dce.person_number`                                       | `principal→userid`                                                                                                                                            |
+| 3      | `cfp_appointments`                                        | `official_job_title→title`, `appointment_type→rank`, `in_house_title→titleLine`, `standard_course_load→standardLoad`, `next_promotion_date→nextPromotionDate` |
+| 4      | `cfp_faculty_primary_email`                               | `email_address→contact.email`                                                                                                                                 |
+| 5      | `cfp_faculty_primary_address`                             | `address_line1/2, city, state_province, postal_code, country → contact.officeAddress{}` + formatted `officeAddress`                                           |
+| 6      | `cfp_faculty_research_areas` ⋈ `cfp_research_area_master` | `area_name → researchAreas[]`                                                                                                                                 |
+| 7      | `cfp_faculty_leave`                                       | `leave_type→leaveType`, `start_date`, `end_date`, `location`, `reason`, `backup_person_number→backupFacultyPersonNumber`                                      |
+| 8      | `ubs_rf.award_v`                                          | `award_number→awardId`, `title→awardName`, `YEAR(award_start)→awardYear` (no sponsor column, so Organization stays blank); keyed `person_number`               |
+
+Then two **userid/principal**-keyed follow-ups run once query #2 yields the
+principal:
+
+- **Students** — `fetchStudents` (below).
+- **Campus office** — `fetchCampusOffice` (`faculty.ts:159`):
+
+  ```sql
+  SELECT b.building_name AS buildingName, o.bldabr, o.room
+  FROM facilities.occupants o
+  LEFT JOIN facilities.buildings b
+    ON CONVERT(b.building_abbr USING utf8mb4) = CONVERT(o.bldabr USING utf8mb4)
+  WHERE CONVERT(o.userid USING utf8mb4) = CONVERT(<principal> USING utf8mb4)
+  ORDER BY o.room IS NULL, o.room ASC
+  LIMIT 1
+  ```
+
+  → `campusOffice` = `"<building_name|bldabr> <room>"`. Note `occupants.userid`
+  is a **principal**, not a person_number, so this fetch waits for query #2.
+
+> Removed (fetched-but-never-rendered): `cfp_faculty_primary_phone_number`
+> (no phone field in the UI) and `cfp_teaching_reductions` (no reductions tab).
+> Never queried at all: `ps_rpt.ps_class_capacity_v` (no enrollment-capacity
+> feature) — present in the DB/ER model but untouched by any endpoint.
+
+Live types for the columns this query selects (all `cfp_*` are `utf8mb4`):
+
+```sql
+-- ubs_emp.cfp_faculty (anchor, PK person_number)
+person_number   varchar(8)       NOT NULL,   -- PK
+cv_document_id  bigint unsigned  NULL         -- → ubs_emp.cfp_documents.document_id
+
+-- ubs_emp.cfp_appointments (PK person_number) — WIDER than the 5 aliased cols:
+--   employer, appointment_term, base_entity, appointment_effective_date,
+--   appointment_end_date are also present but not surfaced.
+official_job_title    varchar(100)    NOT NULL,  -- → title
+appointment_type      varchar(50)     NOT NULL,  -- → rank
+in_house_title        varchar(255)    NULL,       -- → titleLine
+standard_course_load  decimal(4,2)    NULL,       -- → standardLoad
+next_promotion_date   date            NULL        -- → nextPromotionDate
+
+-- ubs_emp.cfp_faculty_research_areas (FK person_number, research_area_id)
+--   joined to cfp_research_area_master.area_name varchar(255) → researchAreas[]
+-- ubs_emp.cfp_faculty_leave: start_date/end_date are NOT NULL date;
+--   reason is TEXT; backup_person_number varchar(8) → backupFacultyPersonNumber
+```
+
+The name/userid joins read `ps_rpt.ub_display_name_v` (`emplid` PK =
+person_number, `name_display varchar(50)`) and the `dce.person_number`
+bridge above. Both are `latin1`, hence the `CONVERT(... USING utf8mb4)`.
 
 **Students** — `fetchStudents` (`faculty.ts:131`), runs after the userid is
 known:
@@ -101,6 +169,21 @@ ORDER BY n.name_display
 ```
 
 `program` is hardcoded `"PhD"` (no program column in `phd_advisors`).
+
+**Photo** — `getFacultyPhoto` (`faculty.ts:329`), route
+`GET /api/v1/faculty/[id]/photo`. Resolves to a `person_number`, then:
+
+```sql
+SELECT image
+FROM sunycard.cfp_cse_faculty_photos_v          -- PK person_number, image mediumblob
+WHERE CONVERT(person_number USING utf8mb4) = CONVERT(? USING utf8mb4)
+LIMIT 1
+```
+
+This route streams **binary**, not JSON — it bypasses the `ok()` /
+`withErrorHandler` envelope, sniffs the MIME from the blob's magic bytes
+(`sniffImageMime`, defaults JPEG), sets `Cache-Control: private, max-age=3600`,
+and returns **404** on no/empty image so the client falls back to initials.
 
 ## 4. Teaching history — `src/server/queries/teachingHistory.ts:62`
 
@@ -127,9 +210,23 @@ could be dropped if abbreviated titles are acceptable.
 ## 5. Teaching preferences — `src/server/queries/teachingPrefs.ts`
 
 The only **plain-knex writes** in the app (cross-schema table, so not
-Editor). Table: `people.cfp_faculty_teaching_prefs`
-(`userid, crse_id, term_code, pref, editor, dt, ts`; unique
-`(userid, crse_id, term_code)`).
+Editor). Table `people.cfp_faculty_teaching_prefs` (`utf8`):
+
+```sql
+id          int          NOT NULL AUTO_INCREMENT,  -- PK (surrogate)
+userid      varchar(8)   NOT NULL,                 -- indexed
+crse_id     varchar(6)   NOT NULL,                 -- indexed
+term_code   varchar(4)   NOT NULL,                 -- indexed
+pref        tinyint      NOT NULL,
+editor      varchar(8)   NULL,
+dt          datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ts          timestamp    NULL     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+-- PRIMARY KEY (id)
+-- UNIQUE (userid, crse_id, term_code) + CHECKs — from migration DDL, not the
+-- column export; see the source-of-truth note at the top.
+```
+
+The app upserts on the logical key `(userid, crse_id, term_code)`, not `id`.
 
 | Function                             | SQL                                                                                                                                                                                                                                                                           |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -147,6 +244,16 @@ Live-DB guard rails enforced **before** SQL (clear 400s):
 | --------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `getCommitteeMemberships` — `committees.ts:6` | `GET /api/v1/committees/memberships?userId=` | `SELECT c.name committeeName, m.role FROM committees.committees c JOIN committees.members m ON m.committee_id = c.id WHERE m.userid = ? ORDER BY c.name` |
 | `getActiveCourses` — `courses.ts:13`          | `GET /api/v1/courses/active`                 | ranked `ps_rpt.ps_course_catalog_v` (latest active row per `crse_id`) → `courseId`, `subject`, `courseName` (`"<catalog>-<title>"`)                      |
+
+Schema notes: `committees.members.role` is a free-text `varchar(16)` (not an
+enum — the `cfp_committee_assignment.role_code` ENUM is the editable side);
+`committees.committees.name varchar(255)` is `UNIQUE`; `committee_id` →
+`committees.committees.id` is a declared FK. The catalog view's relevant
+columns are `crse_id varchar(6)` (PK), `primarysubject varchar(3)`,
+`primarycatalognumber varchar(10)`, `coursetitlelong varchar(100)`,
+`effectivestatus varchar(1)`, `effectivedate date` — the "ranked latest
+active row per crse_id" CTE orders by `effectivedate` desc filtered on
+`effectivestatus = 'A'`.
 
 ## 7. Editor routes (generated CRUD) — `src/app/api/editor/*/route.ts`
 
@@ -260,3 +367,14 @@ then add it to the assembled return object → mapper → detail component
   primary-contact tables, `dce.person_number`, `ub_display_name_v`,
   `phd_advisors`, `sunycard.cfp_cse_faculty_photos_v` — the roster stays
   empty until these are loaded.
+- **Declared FKs** are sparse by design (legacy MySQL schemas). The export
+  records exactly three: `committees.members.committee_id → committees.id`,
+  `ubs_emp.cfp_committee_assignment.catalog_id → cfp_committee_catalog`,
+  `ubs_emp.cfp_faculty_semester_plan.course_plan_id → cfp_faculty_course_plan`
+  (the last with `ON DELETE CASCADE`). All other "relationships" above are
+  join conventions, not enforced constraints.
+- The UNIQUE indexes and CHECK constraints listed in this section are **not**
+  in the column export (it only carries per-column PRI/UNI/MUL flags); they
+  come from the migration DDL and the app's runtime guards. Re-run
+  [`scripts/db-schema/export_schema.py`](../scripts/db-schema/export_schema.py)
+  after any `ALTER` to refresh the committed snapshot.

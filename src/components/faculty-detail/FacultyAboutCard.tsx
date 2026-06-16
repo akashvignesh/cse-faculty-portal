@@ -10,7 +10,8 @@ export default function FacultyAboutCard({ faculty }: { faculty: Faculty }) {
     { label: "Primary Appointment", value: faculty.primaryAppointment },
     { label: "Standard Load", value: faculty.standardLoad },
     { label: "Next Promotion Date", value: faculty.nextPromotionDate },
-    { label: "Campus Office Address", value: faculty.officeAddress },
+    { label: "Campus Office", value: faculty.campusOffice },
+    { label: "Mailing Address", value: faculty.officeAddress },
     { label: "Backup Faculty Person Number", value: faculty.backupFacultyPersonNumber },
   ];
 

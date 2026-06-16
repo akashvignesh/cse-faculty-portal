@@ -86,7 +86,10 @@ export interface TeachingHistory {
 export interface Faculty {
   name: string;
   userid: string;
+  /** Postal/mailing address from cfp_faculty_primary_address. */
   officeAddress: string;
+  /** Campus desk (building + room) from facilities.occupants ⨝ buildings. */
+  campusOffice: string;
   personNumber: string;
   standardLoad: string;
   nextPromotionDate: string;

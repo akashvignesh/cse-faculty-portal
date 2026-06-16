@@ -69,9 +69,9 @@ export default function FacultyTable({ records, isLoading, errorMessage }: Facul
         >
           <thead>
             <tr>
+              <th>Person Number</th>
               <th>Name</th>
-              <th>Userid</th>
-              <th>Campus Office Address</th>
+              <th>Email</th>
             </tr>
           </thead>
           <tbody>
@@ -80,19 +80,19 @@ export default function FacultyTable({ records, isLoading, errorMessage }: Facul
               return (
                 <tr key={routeId}>
                   <td>
-                    <Link className="faculty-table-link" href={`/faculty/${routeId}`}>
-                      {faculty.name}
-                    </Link>
-                  </td>
-                  <td>
                     <Link
                       className="faculty-table-link faculty-table-link-mono"
                       href={`/faculty/${routeId}`}
                     >
-                      {faculty.userid}
+                      {faculty.personNumber}
                     </Link>
                   </td>
-                  <td>{faculty.officeAddress}</td>
+                  <td>
+                    <Link className="faculty-table-link" href={`/faculty/${routeId}`}>
+                      {faculty.name}
+                    </Link>
+                  </td>
+                  <td>{faculty.primaryEmail}</td>
                 </tr>
               );
             })}

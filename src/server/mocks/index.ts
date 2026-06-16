@@ -55,6 +55,13 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
   return findRecord(idOrUserid);
 }
 
+// No bundled photo blobs offline — the route 404s and the UI shows initials.
+export async function getFacultyPhoto(
+  _idOrUserid: string
+): Promise<{ image: Buffer; mime: string } | null> {
+  return null;
+}
+
 export async function getTeachingHistory(
   facultySourceKey: string
 ): Promise<TeachingHistoryResponse | null> {

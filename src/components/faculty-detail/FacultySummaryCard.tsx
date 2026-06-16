@@ -1,5 +1,6 @@
-import { displayValue, getInitials } from "@/lib/format";
+import { displayValue } from "@/lib/format";
 import type { Faculty } from "@/types/faculty";
+import FacultyPhoto from "./FacultyPhoto";
 
 export default function FacultySummaryCard({ faculty }: { faculty: Faculty }) {
   return (
@@ -11,7 +12,7 @@ export default function FacultySummaryCard({ faculty }: { faculty: Faculty }) {
 
       <div className="faculty-summary-card-body">
         <div className="faculty-summary-photo-block">
-          <div className="faculty-summary-photo">{getInitials(faculty.name)}</div>
+          <FacultyPhoto routeId={faculty.personNumber || faculty.userid} name={faculty.name} />
           <div className="faculty-summary-photo-caption">{faculty.name}</div>
         </div>
 
