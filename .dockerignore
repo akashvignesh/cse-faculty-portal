@@ -1,0 +1,21 @@
+# Build artifacts & deps (rebuilt inside the image)
+node_modules
+.next
+out
+
+# VCS / CI / tooling
+.git
+.github
+.vscode
+
+# Secrets — never copy these into the build context
+.env
+.env.*
+*.env
+portal.env
+
+# Docs, schema dumps, tests (not needed to build/run)
+docs
+scripts/db-schema/data
+coverage
+*.log

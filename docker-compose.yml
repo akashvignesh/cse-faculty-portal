@@ -1,0 +1,25 @@
+# Faculty portal — single service, built and run on the same host.
+# Secrets (DB_USER / DB_PASSWORD / DEV_USERID) come from ~/portal.env, which is
+# sourced into the shell before `docker compose up` (see the deploy workflow).
+# Non-secret config is inlined below.
+services:
+  app:
+    build:
+      context: .
+    image: cse-phd-portal:latest
+    container_name: cse-phd-portal
+    restart: unless-stopped
+    # Bind to localhost only: the box has a public IP and the app has no auth
+    # yet, so it must NOT be world-reachable. Reach it via SSH tunnel for now;
+    # switch to "3000:3000" (or put nginx in front) once auth + VPN are sorted.
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_ENV: production
+      FACULTY_DATA_MODE: db
+      DB_HOST: oceanus.cse.buffalo.edu
+      DB_PORT: "3306"
+      DB_DATABASE: ubs_emp
+      DB_USER: ${DB_USER:?DB_USER must be set (source ~/portal.env)}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (source ~/portal.env)}
+      DEV_USERID: ${DEV_USERID:-system}

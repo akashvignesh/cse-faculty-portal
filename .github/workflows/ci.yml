@@ -27,3 +27,33 @@ jobs:
       - run: npm run build
         env:
           FACULTY_DATA_MODE: local
+
+  # Runs only on a green push to main, on the self-hosted runner that lives on
+  # a2il-01. Builds the image with rootless Docker and (re)starts the container.
+  # No registry, no GitHub secrets: DB creds stay in ~/portal.env on the box.
+  deploy:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, a2il-01]
+    concurrency:
+      group: deploy-a2il-01
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build & (re)start container
+        run: |
+          export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
+          set -a; source "$HOME/portal.env"; set +a
+          docker compose up -d --build
+          docker image prune -f
+          # Don't call the deploy good until the app actually answers on :3000.
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:3000 >/dev/null 2>&1; then
+              echo "✅ app is responding on :3000"; exit 0
+            fi
+            sleep 3
+          done
+          echo "❌ app did not become ready in ~60s — recent logs:" >&2
+          docker compose logs --tail=60
+          exit 1
