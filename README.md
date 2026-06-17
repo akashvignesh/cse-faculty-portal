@@ -2,7 +2,9 @@
 
 Full-stack TypeScript Next.js (App Router) application for the UB CSE
 department faculty portal: faculty roster and profiles, teaching history,
-course-preference planning, and committee assignment management.
+course-preference planning (with per-year faculty roles that drive teaching-load
+release), committee assignment management, editable leave records, and course
+area tags that supplement the catalog.
 
 The app is self-contained — its own API routes (under `/api`) replace the
 former Spring Boot backend. Editable tables are served through the
@@ -72,11 +74,16 @@ of hanging.
 
 ```
 src/
-├── app/                  # App Router: 4 UI routes + API route handlers
+├── app/                  # App Router: 5 UI routes + API route handlers
+│   │                     #   (roster, faculty detail, committee-preference,
+│   │                     #    course-preference, course-tags)
 │   └── api/
 │       ├── v1/           # REST reads (faculty, teaching history/prefs,
 │       │                 #   committees, courses) — Java-backend-compatible
 │       └── editor/       # DataTables Editor protocol for editable cfp_* tables
+│                         #   (committee-*, course-plan, semester-plan,
+│                         #    faculty-role, faculty-leave, area-tag-master,
+│                         #    course-area-tag, service-*)
 ├── components/           # React UI (faculty-detail/, course-preference/,
 │                         #   committee-preference/, DataTableView, …)
 ├── services/             # Typed client fetchers (browser side)
@@ -92,11 +99,15 @@ src/
 
 Key invariants:
 
-- **Write allowlist** — only the six new `ubs_emp.cfp_*` tables are writable
-  (enforced in `src/lib/db.ts` / `src/lib/editor/factory.ts`). All other
-  university tables (`committees.*`, `people.*`, `ps_rpt.*`, `dce.*`, the
-  pre-existing `cfp_faculty`) are read-only by ground rule. Exception:
-  `people.cfp_faculty_teaching_prefs` accepts DML via plain knex.
+- **Write allowlist** — only ten `ubs_emp.cfp_*` tables are writable (the
+  `WRITABLE_TABLES` set in `src/lib/db.ts`, also enforced in
+  `src/lib/editor/factory.ts`): the nine app-created tables (course/semester
+  plan, faculty role, the three committee tables, service categories/summary,
+  the two area-tag tables) plus the pre-existing `cfp_faculty_leave`, which the
+  leave editor now writes. All other university tables (`committees.*`,
+  `people.*`, `ps_rpt.*`, `dce.*`, the pre-existing `cfp_faculty`) are read-only
+  by ground rule. Exception: `people.cfp_faculty_teaching_prefs` accepts DML via
+  plain knex.
 - **Identity bridge** — course plans key on `person_number`; committee
   assignments and teaching preferences key on `userid`. `dce.person_number`
   maps between them (`src/server/queries/identity.ts`). API routes accept
@@ -107,21 +118,38 @@ Key invariants:
 - **Term codes** — `[century][YY][term]` with century digit `+18`
   (Fall 2025 = `2259`); helpers and tests in `src/lib/term.ts`.
 
-## Database migration
+## Database migrations & seed
 
-`db/migration/faculty_portal_db_changes.sql` creates the six `cfp_*` tables
-and seed data. **The script opens with `DROP TABLE`s** — re-running wipes all
-plan/assignment data. Apply manually, dev first, never at app startup:
+All SQL lives under `db/` and is applied **manually** (dev first, never at app
+startup). The structural migration opens with `DROP TABLE`s — re-running wipes
+all plan/assignment/role/tag data — and the seed is **not idempotent**, so the
+correct apply order is:
 
 ```bash
-mysql -h 127.0.0.1 -P 3307 -u <user> -p < db/migration/faculty_portal_db_changes.sql
+T="-h 127.0.0.1 -P 3307 -u <user> -p"   # tunnel must be open
+
+# 1. Structural: creates the app cfp_* tables — course/semester plan, faculty
+#    role, the committee tables, service categories/summary, and the area-tag
+#    master (seeded AI/Systems/PL/Theory/Special Topics) + course→tag mapping.
+mysql $T < db/migration/faculty_portal_db_changes.sql
+# 2. Remove any prior seed rows (the seed is not idempotent).
+mysql $T < db/seed/test_faculty_unseed.sql
+# 3. Widen people.cfp_faculty_teaching_prefs.pref CHECK from 0–4 to 0–5
+#    (the UI/API rating scale is 0..5 — 0 = Not Qualified).
+mysql $T < db/migration/widen_teaching_pref_check.sql
+# 4. Seed five test faculty across every table the portal reads/edits.
+mysql $T < db/seed/test_faculty_seed.sql
+# 5. (Optional, re-runnable) derive committee assignments from the live roster
+#    and the per-year roles. Non-destructive; set @ay inside the file.
+mysql $T < db/migration/autofill_committee_assignments.sql
 ```
 
-Before wiring teaching-preference writes in production, verify
-`people.cfp_faculty_teaching_prefs.pref` has no leftover `CHECK (0..4)`
-constraint (the UI scale is 0..5).
+> Collation note for any new cross-schema script: oceanus' server default is
+> `utf8mb4_unicode_ci` but the `cfp_*` tables are `utf8mb4_0900_ai_ci`. Start
+> such scripts with `SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci;` (see
+> `autofill_committee_assignments.sql`).
 
-DB-gated integration tests (require tunnel + migration applied to a dev DB):
+DB-gated integration tests (require tunnel + migrations applied to a dev DB):
 
 ```powershell
 $env:RUN_DB_TESTS="1"; $env:FACULTY_DATA_MODE="db"; npx vitest run tests/api

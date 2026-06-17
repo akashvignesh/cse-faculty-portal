@@ -35,7 +35,8 @@ The **CSE Faculty Portal** is an internal web application for the University at
 Buffalo Department of Computer Science & Engineering. It shows a faculty roster
 and per-faculty detail (appointments, contact, research areas, leave, teaching
 history, committee service, course preferences), and lets staff edit the
-editable bits (committee assignments, course plans, teaching preferences).
+editable bits: committee assignments, course plans, teaching preferences,
+per-year faculty roles, leave records, and course area tags.
 
 - It's a **Next.js** app (React front end + server-side API routes in one
   codebase).
@@ -299,6 +300,13 @@ logout/reboot:
    If not, it prints container logs and **fails** (so a broken deploy is loud).
 7. The container keeps running (`restart: unless-stopped` + linger), serving the
    app and talking to MySQL at `oceanus`.
+
+> **Schema changes are NOT part of this pipeline.** The deploy only builds and
+> restarts the app container — it never runs DDL. Database migrations and seed
+> data under `db/` are applied **manually** against `oceanus` (see the
+> "Database migrations & seed" section of the [README](../README.md) for the
+> exact order). Apply any new migration *before* deploying app code that depends
+> on it, or the new editable features will 500 on a missing table/column.
 
 ---
 

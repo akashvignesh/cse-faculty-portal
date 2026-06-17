@@ -6,7 +6,8 @@ add a field at each layer. All SQL is server-side only, in two places:
 1. **Plain knex queries** — `src/server/queries/*.ts` (reads + teaching-pref
    writes). Used by the `/api/v1/*` routes.
 2. **DataTables Editor instances** — `src/app/api/editor/*/route.ts`
-   (generated CRUD SQL for the six editable `cfp_*` tables).
+   (generated CRUD SQL for the editable `cfp_*` tables in the
+   `WRITABLE_TABLES` allowlist — ten tables as of this writing).
 
 ```
 Browser (components/, services/)            ← fetch JSON only, never SQL
@@ -150,6 +151,8 @@ next_promotion_date   date            NULL        -- → nextPromotionDate
 --   joined to cfp_research_area_master.area_name varchar(255) → researchAreas[]
 -- ubs_emp.cfp_faculty_leave: start_date/end_date are NOT NULL date;
 --   reason is TEXT; backup_person_number varchar(8) → backupFacultyPersonNumber
+--   This read feeds the detail view; the same table is now EDITABLE through the
+--   faculty-leave Editor route (§7), so the Leave tab is a CRUD grid in db mode.
 ```
 
 The name/userid joins read `ps_rpt.ub_display_name_v` (`emplid` PK =
@@ -234,9 +237,13 @@ The app upserts on the logical key `(userid, crse_id, term_code)`, not `id`.
 | `resolveCatalogCourse` (≈104)        | `SELECT crse_id, ... FROM (ranked catalog) WHERE TRIM(primarycatalognumber)=? AND TRIM(coursetitlelong)=?` — input `"<catalog>-<title>"`; 0 hits → 404, >1 → 409                                                                                                              |
 | `saveTeachingPreferences` (line 157) | per item, keyed `(userid, crse_id, term_code)`: pref null → `DELETE`; else `UPDATE ... SET pref=?, editor=?, ts=NOW()` (rows>0 → UPDATED) or `INSERT (userid, crse_id, term_code, pref, editor, ts)` (→ SAVED)                                                                |
 
-Live-DB guard rails enforced **before** SQL (clear 400s):
-`termCode` required + must match `^[0-9]{3}[569]$` (DB CHECK), `pref` 0..4
-(`chk_pref_range` — UI scale is 0..5; widen the CHECK to enable 5).
+Validation lives in `src/server/queries/teachingPrefsValidation.ts` (a pure,
+unit-tested module kept free of `server-only` so it can be imported by tests).
+Guard rails enforced **before** SQL (clear 400s): `termCode` required + must
+match `^[0-9]{3}[569]$` (DB CHECK), `pref` an integer 0..5 (`0` = Not
+Qualified). The DB `chk_pref_range` was widened from 0–4 to **0–5** by
+[`db/migration/widen_teaching_pref_check.sql`](../db/migration/widen_teaching_pref_check.sql),
+so the full UI rating scale now round-trips.
 
 ## 6. Committees / courses (legacy reads)
 
@@ -271,7 +278,23 @@ pkey is exposed as a read-only field on every editor (`.set(false)`).
 | `service-summary`       | `cfp_committee_service_summary` (`service_summary_id`) | `userid` req+max8, `academic_year` req+`YYYY-YYYY`, `others_count` num, `service_points_override` num, `comments` max1024                         | —                                                                     | `academic_year`, `userid`                          |
 | `course-plan`           | `cfp_faculty_course_plan` (`course_plan_id`)           | `person_number` req+max8, `academic_year` req+`YYYY-YYYY`, `faculty_type` ∈ Prof Track/Lecture 10/Lecture 12, `locked` 0/1                        | —                                                                     | `person_number`, `academic_year`                   |
 | `semester-plan`         | `cfp_faculty_semester_plan` (`semester_plan_id`)       | `course_plan_id` req+num, `term` ∈ summer/fall/spring, `slot_status` ∈ Teaching/Not Teaching, `slot_comment` max60                                | `cfp_faculty_course_plan`: `person_number`, `academic_year`, `locked` | `course_plan_id`, `person_number`, `academic_year` |
+| `faculty-role`          | `cfp_faculty_role` (`role_id`)                         | `person_number` req+max8, `academic_year` req+`YYYY-YYYY`, `role` req+`values(ALL_ROLES)` (Chair, Associate Chair, the four directors, Center Director) | —                                                                | `person_number`, `academic_year`                   |
+| `faculty-leave`         | `cfp_faculty_leave` (`leave_id`)                       | `person_number` req+max8, `leave_type` req+`values(LEAVE_TYPES)` (SY/SS/LWOP/PL/Buyout/Release), `start_date` req, `end_date`, `location`, `reason`, `backup_person_number` max8 | —                                       | `person_number`                                    |
+| `area-tag-master`       | `cfp_area_tag_master` (`tag_id`)                       | `name` req+max64 (the canonical AI/Systems/PL/Theory/Special Topics list; seeded by the migration)                                               | —                                                                     | —                                                  |
+| `course-area-tag`       | `cfp_course_area_tag` (`course_area_tag_id`)           | `crse_id` req+max10, `tag_id` req+num                                                                                                            | `cfp_area_tag_master`: `name`                                         | `crse_id`                                          |
 | `service-categories`    | `cfp_service_categories`                               | **GET-only** plain knex: `SELECT category, label, points ORDER BY category` (static seed fallback in local mode)                                  | —                                                                     | —                                                  |
+
+`ALL_ROLES` (`src/components/course-preference/coursePreferenceUtils.ts`) and
+`LEAVE_TYPES` (`src/lib/leaveTypes.ts`) are the single sources of truth shared
+between each route's `Validate.values(...)` and the editing UI.
+
+**Committee auto-populate** (not an HTTP route) —
+[`db/migration/autofill_committee_assignments.sql`](../db/migration/autofill_committee_assignments.sql)
+is a re-runnable, non-destructive script (idempotent via `NOT EXISTS`,
+tagged `editor='AUTOFILL'`) that derives `cfp_committee_assignment` rows from
+the live `committees.members` roster and from `cfp_faculty_role` leadership.
+It opens with `SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci` so literals,
+variables, and `CONVERT(...)` results all match the `cfp_*` column collation.
 
 **Wire format** (`src/lib/editor/client.ts` speaks it): GET returns
 `{data: [{DT_RowId: "row_<pk>", "<table>": {col: val}, "<joined table>": {...}}]}`;
@@ -291,12 +314,14 @@ semester_plan_id IN (...)` for edits/removes), rejects when any
 
 ## 8. Who calls what (client side, no SQL)
 
-| UI                 | Client service                                 | API                                                                                        |
-| ------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Roster page        | `services/faculty/facultyService.ts`           | `GET /api/v1/faculty?size=500`                                                             |
-| Detail page + tabs | `services/faculty/facultyDetailService.ts`     | detail, teaching-history, memberships, teaching-preferences (lazy per tab)                 |
-| Committee matrix   | `services/committee/committeeMatrixService.ts` | editor catalog/assignments/service-summary (load + diff-save), service-categories          |
-| Course planner     | `services/course-plan/coursePlanService.ts`    | editor course-plan/semester-plan (header upsert + slot replace), teaching-preferences POST |
+| UI                 | Client service                                 | API                                                                                                              |
+| ------------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Roster page        | `services/faculty/facultyService.ts`           | `GET /api/v1/faculty?size=500`                                                                                   |
+| Detail page + tabs | `services/faculty/facultyDetailService.ts`     | detail, teaching-history, memberships, teaching-preferences (lazy per tab)                                       |
+| Leave tab (edit)   | `services/faculty/leaveService.ts`             | editor faculty-leave (load + diff-save add/edit/remove); read-only fallback in mock mode                         |
+| Committee matrix   | `services/committee/committeeMatrixService.ts` | editor catalog/assignments/service-summary (load + diff-save), service-categories                                |
+| Course planner     | `services/course-plan/coursePlanService.ts`    | editor course-plan/semester-plan (header upsert + slot replace) **+ faculty-role (replace)**, teaching-preferences POST; `GET /api/v1/courses/active` feeds the preference grid |
+| Course area tags   | `services/courseTags/courseTagService.ts`      | editor area-tag-master (list) + course-area-tag (per-course create/remove); `GET /api/v1/courses/active` for the course picker |
 
 ---
 
@@ -356,23 +381,35 @@ then add it to the assembled return object → mapper → detail component
 - `cfp_faculty_semester_plan`: FK → course_plan `ON DELETE CASCADE`;
   `term` / `slot_status` ENUMs; `slot_comment` ≤ 60.
 - `cfp_committee_service_summary`: UNIQUE `(userid, academic_year)`.
+- `cfp_faculty_role`: surrogate PK `role_id`; UNIQUE
+  `(person_number, academic_year, role)`; `role` ∈ `ALL_ROLES`. Drives the
+  teaching-load release (Chair −2.5; DGS/DUS/Admissions −1; others 0).
+- `cfp_faculty_leave`: PK `leave_id`; `leave_type` constrained to `LEAVE_TYPES`
+  at the app layer (no DB enum). **Writable** via the leave editor (a
+  pre-existing `cfp_*` table added to the allowlist).
+- `cfp_area_tag_master`: PK `tag_id`; UNIQUE `name`; seeded with
+  AI/Systems/PL/Theory/Special Topics by the migration.
+- `cfp_course_area_tag`: PK `course_area_tag_id`; UNIQUE `(crse_id, tag_id)`;
+  FK `tag_id → cfp_area_tag_master` `ON DELETE CASCADE`.
 - `people.cfp_faculty_teaching_prefs`: UNIQUE `(userid, crse_id, term_code)`;
-  CHECK `pref BETWEEN 0 AND 4` (widen to 0–5 for the full UI scale);
+  CHECK `pref BETWEEN 0 AND 5` (widened from 0–4 by
+  `db/migration/widen_teaching_pref_check.sql`);
   CHECK `term_code REGEXP '^[0-9]{3}[569]$'`.
 - Everything else (`ps_rpt.*`, `dce.*`, `committees.*`, `people.*` non-prefs,
   `cfp_faculty`, `cfp_appointments`, `cfp_faculty_primary_*`,
-  `cfp_faculty_leave`, `cfp_teaching_reductions`, `cfp_faculty_load_balance`)
-  is **read-only** by ground rule and by the app's allowlist.
+  `cfp_teaching_reductions`, `cfp_faculty_load_balance`) is **read-only** by
+  ground rule and by the app's allowlist.
 - Currently unpopulated on the dev DB: `cfp_faculty`, `cfp_appointments`,
   primary-contact tables, `dce.person_number`, `ub_display_name_v`,
   `phd_advisors`, `sunycard.cfp_cse_faculty_photos_v` — the roster stays
   empty until these are loaded.
-- **Declared FKs** are sparse by design (legacy MySQL schemas). The export
-  records exactly three: `committees.members.committee_id → committees.id`,
+- **Declared FKs** are sparse by design (legacy MySQL schemas). Enforced ones:
+  `committees.members.committee_id → committees.id`,
   `ubs_emp.cfp_committee_assignment.catalog_id → cfp_committee_catalog`,
-  `ubs_emp.cfp_faculty_semester_plan.course_plan_id → cfp_faculty_course_plan`
-  (the last with `ON DELETE CASCADE`). All other "relationships" above are
-  join conventions, not enforced constraints.
+  `ubs_emp.cfp_faculty_semester_plan.course_plan_id → cfp_faculty_course_plan`,
+  and `ubs_emp.cfp_course_area_tag.tag_id → cfp_area_tag_master` (the last two
+  with `ON DELETE CASCADE`). All other "relationships" above are join
+  conventions, not enforced constraints.
 - The UNIQUE indexes and CHECK constraints listed in this section are **not**
   in the column export (it only carries per-column PRI/UNI/MUL flags); they
   come from the migration DDL and the app's runtime guards. Re-run
