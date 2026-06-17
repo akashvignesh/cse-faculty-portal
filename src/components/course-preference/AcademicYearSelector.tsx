@@ -14,16 +14,20 @@ export interface AcademicYearSelectorProps {
   years: AcademicYearOption[];
   selectedYear: string;
   onSelectYear: (year: string) => void;
+  /** When provided, renders an "Add Year" control (PDF p4). */
+  onAddYear?: () => void;
 }
 
 /**
  * Displays academic year pills. Locked years show a lock icon and a
- * "Read-only" badge.
+ * "Read-only" badge. Adding a year locks the previous years and copies the
+ * latest year's content forward (handled by the parent).
  */
 export default function AcademicYearSelector({
   years,
   selectedYear,
   onSelectYear,
+  onAddYear,
 }: AcademicYearSelectorProps) {
   return (
     <div className="cp-year-selector">
@@ -56,6 +60,17 @@ export default function AcademicYearSelector({
             </button>
           );
         })}
+
+        {onAddYear && (
+          <button
+            type="button"
+            className="cp-year-pill cp-year-add"
+            onClick={onAddYear}
+            aria-label="Add the next academic year"
+          >
+            <span>+ Add Year</span>
+          </button>
+        )}
       </div>
     </div>
   );

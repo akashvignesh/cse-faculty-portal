@@ -99,8 +99,12 @@ export interface Faculty {
   profilePhotoUrl: string;
   titleLine: string;
   statusMessage: string;
+  /** Official, userid-derived address: <userid>@buffalo.edu. */
   primaryEmail: string;
+  /** Personal email from cfp_faculty_primary_email. */
   secondaryEmail: string;
+  /** Primary phone from cfp_faculty_primary_phone_number. */
+  phone: string;
   physicalAddressLines: string[];
   mailingAddressLines: string[];
   socialLinks: string[];

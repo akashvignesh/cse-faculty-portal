@@ -1,17 +1,26 @@
 import type { Faculty, YearData } from "@/types/faculty";
-import { getComputedAnnualLoad } from "./coursePreferenceUtils";
+import { ALL_ROLES, getComputedAnnualLoad } from "./coursePreferenceUtils";
 
 export interface FacultyInfoCardProps {
   faculty: Faculty;
   yearData: YearData;
   isLocked: boolean;
+  /** When provided (and not locked), roles become an editable multi-select. */
+  onToggleRole?: (role: string) => void;
 }
 
 /**
- * Displays faculty type and roles supplied by faculty/backend data.
+ * Displays faculty type and roles. Roles are editable (multi-select) when the
+ * year is unlocked and an onToggleRole handler is supplied.
  */
-export default function FacultyInfoCard({ faculty, yearData, isLocked }: FacultyInfoCardProps) {
+export default function FacultyInfoCard({
+  faculty,
+  yearData,
+  isLocked,
+  onToggleRole,
+}: FacultyInfoCardProps) {
   const annualLoad = getComputedAnnualLoad(yearData.facultyType, yearData.roles);
+  const rolesEditable = !isLocked && typeof onToggleRole === "function";
 
   const loadLabel =
     annualLoad === 0
@@ -39,9 +48,30 @@ export default function FacultyInfoCard({ faculty, yearData, isLocked }: Faculty
 
           <div className="cp-info-item cp-info-item-full">
             <span className="cp-info-label">Faculty Roles</span>
-            <span className="cp-info-value">
-              {yearData.roles.length > 0 ? yearData.roles.join(", ") : "None"}
-            </span>
+            {rolesEditable ? (
+              <div className="cp-role-options" role="group" aria-label="Faculty roles">
+                {ALL_ROLES.map((role) => {
+                  const checked = yearData.roles.includes(role);
+                  return (
+                    <label
+                      key={role}
+                      className={`cp-role-option${checked ? " is-checked" : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => onToggleRole?.(role)}
+                      />
+                      <span>{role}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <span className="cp-info-value">
+                {yearData.roles.length > 0 ? yearData.roles.join(", ") : "None"}
+              </span>
+            )}
           </div>
 
           <div className="cp-info-item">

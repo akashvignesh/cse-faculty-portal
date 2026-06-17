@@ -22,6 +22,9 @@ DROP TABLE IF EXISTS ubs_emp.cfp_committee_catalog;
 DROP TABLE IF EXISTS ubs_emp.cfp_service_categories;
 DROP TABLE IF EXISTS ubs_emp.cfp_faculty_semester_plan;
 DROP TABLE IF EXISTS ubs_emp.cfp_faculty_course_plan;
+DROP TABLE IF EXISTS ubs_emp.cfp_faculty_role;
+DROP TABLE IF EXISTS ubs_emp.cfp_course_area_tag;
+DROP TABLE IF EXISTS ubs_emp.cfp_area_tag_master;
 
 -- ── A. TEACHING PREFERENCE ───────────────────────────────────────────────────
 -- A1 (no DDL): people.cfp_faculty_teaching_prefs already has term_code + pref.
@@ -56,6 +59,22 @@ CREATE TABLE IF NOT EXISTS ubs_emp.cfp_faculty_semester_plan (
   KEY idx_slot_plan (course_plan_id),
   CONSTRAINT fk_slot_plan FOREIGN KEY (course_plan_id)
     REFERENCES ubs_emp.cfp_faculty_course_plan (course_plan_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- A3. Faculty roles per academic year. Drives the teaching-load release
+-- (Chair −2.5; DGS/DUS/Admissions −1; others 0) and can seed committee leadership.
+-- Surrogate pkey for the Editor protocol; business key is unique.
+CREATE TABLE IF NOT EXISTS ubs_emp.cfp_faculty_role (
+  role_id       BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  person_number VARCHAR(8)  NOT NULL,
+  academic_year VARCHAR(9)  NOT NULL,                          -- '2025-2026'
+  role          VARCHAR(64) NOT NULL,                          -- 'Chair','Director of Graduate Studies',…
+  editor        VARCHAR(8)  NULL,
+  dt            DATETIME    NULL,
+  ts            TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (role_id),
+  UNIQUE KEY uq_faculty_role (person_number, academic_year, role),
+  KEY idx_role_person_year (person_number, academic_year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ── B. COMMITTEE ─────────────────────────────────────────────────────────────
@@ -152,18 +171,9 @@ CREATE TABLE IF NOT EXISTS ubs_emp.cfp_committee_assignment (
     REFERENCES ubs_emp.cfp_committee_catalog (catalog_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- B2 seed (OPTIONAL — current year from existing members; set the year you want).
--- CONVERT(m.role USING utf8mb4) avoids the latin1↔utf8mb4 collation clash on the CASE.
--- INSERT INTO ubs_emp.cfp_committee_assignment (catalog_id, userid, role_code, academic_year)
--- SELECT cat.catalog_id, m.userid,
---        CASE UPPER(LEFT(CONVERT(m.role USING utf8mb4),1))
---             WHEN 'C' THEN 'C' WHEN 'V' THEN 'V' WHEN 'A' THEN 'A' WHEN 'P' THEN 'P' ELSE 'X' END,
---        '2025-2026'
--- FROM committees.members m
--- JOIN ubs_emp.cfp_committee_catalog cat ON cat.source_committee_id = m.committee_id
--- WHERE m.userid IS NOT NULL
---   AND NOT EXISTS (SELECT 1 FROM ubs_emp.cfp_committee_assignment a
---                   WHERE a.catalog_id=cat.catalog_id AND a.userid=m.userid AND a.academic_year='2025-2026');
+-- B2 auto-populate (members → matrix, roles → leadership) is a separate,
+-- re-runnable, NON-DESTRUCTIVE step so it never clobbers manual matrix edits:
+--   db/migration/autofill_committee_assignments.sql   (set @ay to the target year)
 
 -- B4. Per-faculty manual summary (computed columns derived live, not stored)
 CREATE TABLE IF NOT EXISTS ubs_emp.cfp_committee_service_summary (
@@ -178,4 +188,35 @@ CREATE TABLE IF NOT EXISTS ubs_emp.cfp_committee_service_summary (
   ts                      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (service_summary_id),
   UNIQUE KEY uq_summary_user_year (userid, academic_year)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ── C. COURSE AREA TAGS (supplement the course catalog; PDF p1) ───────────────
+-- C1. Canonical area-tag list (seeded reference data).
+CREATE TABLE IF NOT EXISTS ubs_emp.cfp_area_tag_master (
+  tag_id INT NOT NULL AUTO_INCREMENT,
+  name   VARCHAR(64) NOT NULL,
+  editor VARCHAR(8) NULL,
+  dt     DATETIME NULL,
+  ts     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (tag_id),
+  UNIQUE KEY uq_area_tag_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO ubs_emp.cfp_area_tag_master (name) VALUES
+  ('AI'), ('Systems'), ('PL'), ('Theory'), ('Special Topics')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- C2. Course → area-tag mapping (a course can carry multiple tags).
+CREATE TABLE IF NOT EXISTS ubs_emp.cfp_course_area_tag (
+  course_area_tag_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  crse_id            VARCHAR(10) NOT NULL,           -- ps_rpt.ps_course_catalog_v.crse_id
+  tag_id             INT NOT NULL,
+  editor             VARCHAR(8) NULL,
+  dt                 DATETIME NULL,
+  ts                 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (course_area_tag_id),
+  UNIQUE KEY uq_course_tag (crse_id, tag_id),
+  KEY idx_course_tag_crse (crse_id),
+  CONSTRAINT fk_course_tag_master FOREIGN KEY (tag_id)
+    REFERENCES ubs_emp.cfp_area_tag_master (tag_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -20,26 +20,37 @@ export const DEFAULT_ANNUAL_LOAD: Record<FacultyType, number> = {
 export const ALL_FACULTY_TYPES = Object.keys(DEFAULT_ANNUAL_LOAD) as FacultyType[];
 
 // ── Faculty roles ─────────────────────────────────────────────────────────────
-// Chair → full release (0 courses), Associate Chair / Director → 1 course/year
-export const ALL_ROLES = ["Chair", "Associate Chair", "Director", "Other"];
-
-export type RoleAdjustment = number | "FULL_RELEASE";
-
-export const ROLE_ADJUSTMENTS_CONFIG: { role: string; adjustment: RoleAdjustment }[] = [
-  { role: "Chair", adjustment: "FULL_RELEASE" },
-  { role: "Associate Chair", adjustment: 1 },
-  { role: "Director", adjustment: 1 },
+// Teaching-load reductions per the PDF "Implications on Roles" (page 3):
+//   Chair                         −2.5 courses
+//   Director of Graduate Studies  −1   (chairs GAC, on Executive Committee)
+//   Director of Undergrad Studies −1   (chairs UGAC, on Executive Committee)
+//   Director of Admissions        −1   (chairs Admissions, on Executive Committee)
+//   Director of Research           0   (on Executive Committee, no release)
+//   Center Director                0   (nothing special at this point)
+//   Associate Chair                0   (no automatic release in the spec)
+export const ROLE_ADJUSTMENTS_CONFIG: { role: string; adjustment: number }[] = [
+  { role: "Chair", adjustment: 2.5 },
+  { role: "Associate Chair", adjustment: 0 },
+  { role: "Director of Graduate Studies", adjustment: 1 },
+  { role: "Director of Undergraduate Studies", adjustment: 1 },
+  { role: "Director of Admissions", adjustment: 1 },
+  { role: "Director of Research", adjustment: 0 },
+  { role: "Center Director", adjustment: 0 },
 ];
 
-// ── Computed annual load (role overrides type default) ───────────────────────
-export function getComputedAnnualLoad(facultyType: FacultyType, roles: string[] = []): number {
-  if (roles.includes("Chair")) return 0;
-  const defaultLoad = getDefaultLoad(facultyType);
-  const release = roles.reduce((total, role) => {
-    const adjustment = ROLE_ADJUSTMENTS_CONFIG.find((item) => item.role === role)?.adjustment;
-    return typeof adjustment === "number" ? total + adjustment : total;
+export const ALL_ROLES = ROLE_ADJUSTMENTS_CONFIG.map((item) => item.role);
+
+/** Total teaching-load release (in courses) summed across all assigned roles. */
+export function getTotalRoleRelease(roles: string[] = []): number {
+  return roles.reduce((total, role) => {
+    const adjustment = ROLE_ADJUSTMENTS_CONFIG.find((item) => item.role === role)?.adjustment ?? 0;
+    return total + adjustment;
   }, 0);
-  return Math.max(0, defaultLoad - release);
+}
+
+// ── Computed annual load (type default minus role releases, floored at 0) ─────
+export function getComputedAnnualLoad(facultyType: FacultyType, roles: string[] = []): number {
+  return Math.max(0, getDefaultLoad(facultyType) - getTotalRoleRelease(roles));
 }
 
 // ── Default per-semester distribution from annual load ───────────────────────
@@ -127,11 +138,14 @@ export const RANKING_LABELS: Record<number, string> = {
 // ── Cross-semester load validation ────────────────────────────────────────────
 export function validateSemesterPlan(
   semesterPlan: Partial<SemesterPlan>,
-  annualLoad: number
+  annualLoad: number,
+  facultyType: FacultyType | string
 ): ValidationMessage[] {
   const expectedLoad = Math.ceil(annualLoad);
+  // Summer only counts toward the annual load for Lecture 12 (PDF p4).
+  const countsSummer = SUMMER_COUNTS_TOWARD_LOAD[facultyType as FacultyType] ?? false;
   const total =
-    (semesterPlan.summer?.length ?? 0) +
+    (countsSummer ? (semesterPlan.summer?.length ?? 0) : 0) +
     (semesterPlan.fall?.length ?? 0) +
     (semesterPlan.spring?.length ?? 0);
 
@@ -183,6 +197,41 @@ export function createEmptyYearData(): YearData {
     requestedLoad,
     semesterPlan: buildDefaultSemesterPlan(requestedLoad),
     coursePreferences: [],
+  };
+}
+
+export interface YearOption {
+  year: string;
+  locked: boolean;
+}
+
+export interface AddYearResult {
+  years: YearOption[];
+  newYear: string;
+  yearData: YearData;
+}
+
+/**
+ * Adds the next academic year (PDF p4): locks every existing year, appends the
+ * next year unlocked, and copies the latest year's content forward (advancing
+ * the biannual alternation). Returns null when the latest year is malformed or
+ * the next year already exists.
+ */
+export function addAcademicYear(
+  years: YearOption[],
+  yearDataMap: Record<string, YearData>
+): AddYearResult | null {
+  const latest = years[years.length - 1]?.year;
+  if (!latest) return null;
+  const newYear = getNextYearString(latest);
+  if (!newYear || years.some((y) => y.year === newYear)) return null;
+
+  const copied = deepCopyYearData(yearDataMap[latest]);
+  const carryIn = getBiannualCarryInSlots(yearDataMap[latest]);
+  return {
+    years: [...years.map((y) => ({ ...y, locked: true })), { year: newYear, locked: false }],
+    newYear,
+    yearData: applyBiannualCarryIn(copied, carryIn),
   };
 }
 
@@ -288,14 +337,11 @@ export function getDefaultLoad(facultyType: FacultyType | string): number {
   return DEFAULT_ANNUAL_LOAD[facultyType as FacultyType] ?? DEFAULT_ANNUAL_LOAD["Prof Track"];
 }
 
-export function getRoleAdjustment(roles: string[]): RoleAdjustment {
-  if (roles.includes("Chair")) return "FULL_RELEASE";
-  if (roles.includes("Associate Chair") || roles.includes("Director")) return 1;
-  return 0;
+export function getRoleAdjustment(roles: string[]): number {
+  return getTotalRoleRelease(roles);
 }
 
-export function getAdjustedLoad(defaultLoad: number, roleAdjustment: RoleAdjustment): number {
-  if (roleAdjustment === "FULL_RELEASE") return 0;
+export function getAdjustedLoad(defaultLoad: number, roleAdjustment: number): number {
   return Math.max(0, defaultLoad - roleAdjustment);
 }
 

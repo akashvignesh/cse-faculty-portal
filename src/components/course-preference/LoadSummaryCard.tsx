@@ -35,7 +35,10 @@ export default function LoadSummaryCard({ yearData }: { yearData: YearData }) {
   const adjustedLoad = getAdjustedLoad(defaultLoad, roleAdjustment);
   const countsSummer = SUMMER_COUNTS_TOWARD_LOAD[facultyType] ?? false;
 
-  const roleAdjConfigs = ROLE_ADJUSTMENTS_CONFIG.filter((r) => roles.includes(r.role));
+  // Only roles that actually carry a reduction appear in the breakdown.
+  const roleAdjConfigs = ROLE_ADJUSTMENTS_CONFIG.filter(
+    (r) => roles.includes(r.role) && r.adjustment > 0
+  );
 
   return (
     <div className="cp-section-card">
@@ -53,9 +56,7 @@ export default function LoadSummaryCard({ yearData }: { yearData: YearData }) {
 
           <div className="cp-load-tile cp-load-tile-adjustments">
             <span className="cp-load-tile-label">Role Adjustments</span>
-            {roleAdjustment === "FULL_RELEASE" ? (
-              <strong className="cp-load-tile-value cp-load-release-value">Full Release</strong>
-            ) : roleAdjustment === 0 ? (
+            {roleAdjustment === 0 ? (
               <strong className="cp-load-tile-value cp-load-none-value">None</strong>
             ) : (
               <strong className="cp-load-tile-value cp-load-reduction-value">
@@ -66,8 +67,7 @@ export default function LoadSummaryCard({ yearData }: { yearData: YearData }) {
               <ul className="cp-load-role-list">
                 {roleAdjConfigs.map((r) => (
                   <li key={r.role}>
-                    {r.role}:{" "}
-                    {r.adjustment === "FULL_RELEASE" ? "Full Release" : `−${r.adjustment}`}
+                    {r.role}: −{r.adjustment}
                   </li>
                 ))}
               </ul>

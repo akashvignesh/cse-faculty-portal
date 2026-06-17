@@ -1,0 +1,12 @@
+Database,Table,Col #,Column,Data Type,Nullable,Key,Default,Extra,Charset,Collation,Comment
+network,vlans,1,id,int,NO,PRI,,auto_increment,,,
+network,vlans,2,vlan,varchar(4),NO,UNI,,,latin1,latin1_swedish_ci,
+network,vlans,3,name,varchar(50),YES,,,,latin1,latin1_swedish_ci,
+network,vlans,4,location,varchar(50),YES,,,,latin1,latin1_swedish_ci,
+network,vlans,5,ipv4_cidr,varchar(18),YES,,,,latin1,latin1_swedish_ci,
+network,vlans,6,ipv4_gateway,varchar(15),YES,,,,latin1,latin1_swedish_ci,
+network,vlans,7,ipv6_cidr,varchar(22),YES,,,,latin1,latin1_swedish_ci,
+network,vlans,8,ipv6_gateway,varchar(20),YES,,,,latin1,latin1_swedish_ci,
+network,vlans,9,editor,varchar(8),YES,,,,latin1,latin1_swedish_ci,
+network,vlans,10,dt,datetime,YES,,,,,,
+network,vlans,11,ts,timestamp,YES,,CURRENT_TIMESTAMP,DEFAULT_GENERATED on update CURRENT_TIMESTAMP,,,

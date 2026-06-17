@@ -1,0 +1,4 @@
+Database,Table,Column,Constraint,Ref Database,Ref Table,Ref Column
+committees,members,committee_id,committee_id,committees,committees,id
+ubs_emp,cfp_committee_assignment,catalog_id,fk_assign_catalog,ubs_emp,cfp_committee_catalog,catalog_id
+ubs_emp,cfp_faculty_semester_plan,course_plan_id,fk_slot_plan,ubs_emp,cfp_faculty_course_plan,course_plan_id

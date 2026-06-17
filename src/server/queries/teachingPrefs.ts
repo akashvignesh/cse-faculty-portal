@@ -9,6 +9,7 @@ import type {
   TeachingPreferencesResponse,
 } from "@/server/data/types";
 import { resolveUserid } from "./identity";
+import { TERM_CODE_PATTERN, validatePref } from "./teachingPrefsValidation";
 
 // people.cfp_faculty_teaching_prefs is editable but lives outside the ubs_emp
 // schema, so it is handled with plain knex statements (not the Editor protocol).
@@ -129,30 +130,6 @@ async function resolveCatalogCourse(courseName: string): Promise<CatalogCourse> 
   }
   return matches[0] as CatalogCourse;
 }
-
-function validatePref(pref: unknown, courseName: string): number | null {
-  if (pref === null || pref === undefined) return null;
-  const value = Number(pref);
-  if (!Number.isInteger(value) || value < 0 || value > 5) {
-    throw new BadRequestError(
-      `pref for "${courseName}" must be an integer from 0 (Not Qualified) to 5, or null to delete`
-    );
-  }
-  // The live table still carries chk_pref_range CHECK (pref BETWEEN 0 AND 4),
-  // although the design scale is 0..5. Fail with a clear message instead of a
-  // raw constraint violation until the DBA widens the CHECK.
-  if (value === 5) {
-    throw new BadRequestError(
-      `pref=5 for "${courseName}" is currently blocked by the database CHECK ` +
-        "chk_pref_range (0–4) on people.cfp_faculty_teaching_prefs. " +
-        "Widen the CHECK to 0–5 to enable the full rating scale."
-    );
-  }
-  return value;
-}
-
-/** Live CHECK: regexp_like(term_code, '^[0-9]{3}[569]$'). */
-const TERM_CODE_PATTERN = /^[0-9]{3}[569]$/;
 
 export async function saveTeachingPreferences(
   idOrUserid: string,

@@ -17,10 +17,16 @@ export default function FacultySummaryCard({ faculty }: { faculty: Faculty }) {
         </div>
 
         <div className="faculty-summary-contact">
-          <h3>Email Addresses</h3>
+          <h3>Contact</h3>
           <div className="faculty-summary-contact-list">
-            <a href={`mailto:${faculty.primaryEmail}`}>{displayValue(faculty.primaryEmail)}</a>
-            <a href={`mailto:${faculty.secondaryEmail}`}>{displayValue(faculty.secondaryEmail)}</a>
+            <p>
+              Official: <a href={`mailto:${faculty.primaryEmail}`}>{displayValue(faculty.primaryEmail)}</a>
+            </p>
+            <p>
+              Personal:{" "}
+              <a href={`mailto:${faculty.secondaryEmail}`}>{displayValue(faculty.secondaryEmail)}</a>
+            </p>
+            <p>Phone: {displayValue(faculty.phone)}</p>
           </div>
         </div>
 

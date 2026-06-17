@@ -18,8 +18,10 @@ import type {
 
 const PLAN_URL = "/api/editor/course-plan";
 const SLOT_URL = "/api/editor/semester-plan";
+const ROLE_URL = "/api/editor/faculty-role";
 const PLAN_TABLE = "cfp_faculty_course_plan";
 const SLOT_TABLE = "cfp_faculty_semester_plan";
+const ROLE_TABLE = "cfp_faculty_role";
 
 interface PlanRow {
   DT_RowId?: string;
@@ -185,6 +187,75 @@ export async function saveYearPlan(input: SaveYearPlanInput): Promise<SaveYearPl
   }
 
   return { coursePlanId, slotsSaved: slots.length };
+}
+
+interface RoleRow {
+  DT_RowId?: string;
+  cfp_faculty_role?: {
+    role_id: number | string;
+    person_number: string;
+    academic_year: string;
+    role: string;
+  };
+}
+
+export interface StoredRoles {
+  roles: string[];
+  /** DT row ids of the stored role rows — the baseline for replace-on-save. */
+  rowIds: string[];
+}
+
+/** Loads the stored per-year roles for one faculty. Null when the editor backend is unavailable. */
+export async function loadStoredRoles(
+  personNumber: string,
+  academicYear: string
+): Promise<{ available: boolean; stored: StoredRoles | null }> {
+  let rows: RoleRow[];
+  try {
+    rows = await editorLoad<RoleRow>(
+      `${ROLE_URL}?person_number=${encodeURIComponent(personNumber)}&academic_year=${encodeURIComponent(academicYear)}`
+    );
+  } catch (error) {
+    if (error instanceof EditorError) {
+      return { available: false, stored: null };
+    }
+    throw error;
+  }
+
+  const roles: string[] = [];
+  const rowIds: string[] = [];
+  for (const row of rows) {
+    const r = row.cfp_faculty_role;
+    if (!r) continue;
+    rowIds.push(row.DT_RowId ?? `row_${r.role_id}`);
+    roles.push(r.role);
+  }
+  return { available: true, stored: { roles, rowIds } };
+}
+
+/** Replaces the stored role set with the current selection. */
+export async function saveRoles(
+  personNumber: string,
+  academicYear: string,
+  roles: string[],
+  stored: StoredRoles | null
+): Promise<number> {
+  if (stored && stored.rowIds.length > 0) {
+    const removes = Object.fromEntries(stored.rowIds.map((rowId) => [rowId, {}]));
+    await editorSubmit(ROLE_URL, "remove", removes);
+  }
+
+  const payload: Record<string, Record<string, unknown>> = {};
+  roles.forEach((role, index) => {
+    payload[String(index)] = {
+      [ROLE_TABLE]: { person_number: personNumber, academic_year: academicYear, role },
+    };
+  });
+
+  if (Object.keys(payload).length > 0) {
+    await editorSubmit(ROLE_URL, "create", payload);
+  }
+  return roles.length;
 }
 
 export interface SavePreferencesResult {

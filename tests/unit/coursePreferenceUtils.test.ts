@@ -1,17 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  addAcademicYear,
   applyBiannualCarryIn,
   buildDefaultSemesterPlan,
   createEmptyYearData,
+  getAdjustedLoad,
   getBiannualCarryInSlots,
   getComputedAnnualLoad,
+  getDefaultLoad,
   getDefaultSemesterDistribution,
   getNextYearString,
+  getRoleAdjustment,
   resizeSemesterRows,
   validateLoadInputs,
   validateSemesterPlan,
 } from "@/components/course-preference/coursePreferenceUtils";
-import type { SemesterSlot, YearData } from "@/types/faculty";
+import type { FacultyType, SemesterSlot, YearData } from "@/types/faculty";
 
 function makeYearData(overrides: Partial<YearData> = {}): YearData {
   return { ...createEmptyYearData(), ...overrides };
@@ -28,19 +32,55 @@ describe("getComputedAnnualLoad", () => {
     expect(getComputedAnnualLoad("Prof Track")).toBe(2.5);
   });
 
-  it("gives Chair a full release", () => {
-    expect(getComputedAnnualLoad("Lecture 12", ["Chair"])).toBe(0);
+  it("gives Chair a 2.5-course reduction (PDF p3), not a full release", () => {
+    expect(getComputedAnnualLoad("Lecture 12", ["Chair"])).toBe(5.5);
+    expect(getComputedAnnualLoad("Lecture 10", ["Chair"])).toBe(3.5);
+    // Prof Track lands at 0 because 2.5 − 2.5 = 0
+    expect(getComputedAnnualLoad("Prof Track", ["Chair"])).toBe(0);
   });
 
-  it("subtracts one course per release role", () => {
-    expect(getComputedAnnualLoad("Lecture 10", ["Associate Chair"])).toBe(5);
-    expect(getComputedAnnualLoad("Lecture 10", ["Associate Chair", "Director"])).toBe(4);
+  it("subtracts one course for each course-bearing directorship", () => {
+    expect(getComputedAnnualLoad("Lecture 10", ["Director of Graduate Studies"])).toBe(5);
+    expect(getComputedAnnualLoad("Lecture 10", ["Director of Undergraduate Studies"])).toBe(5);
+    expect(getComputedAnnualLoad("Lecture 10", ["Director of Admissions"])).toBe(5);
+  });
+
+  it("applies no reduction for roles the PDF leaves unreduced", () => {
+    expect(getComputedAnnualLoad("Lecture 10", ["Associate Chair"])).toBe(6);
+    expect(getComputedAnnualLoad("Lecture 10", ["Director of Research"])).toBe(6);
+    expect(getComputedAnnualLoad("Lecture 10", ["Center Director"])).toBe(6);
+  });
+
+  it("sums reductions across multiple roles", () => {
+    expect(getComputedAnnualLoad("Lecture 12", ["Chair", "Director of Graduate Studies"])).toBe(
+      4.5
+    );
   });
 
   it("never goes below zero", () => {
-    expect(getComputedAnnualLoad("Prof Track", ["Associate Chair", "Director", "Director"])).toBe(
-      0
-    );
+    expect(getComputedAnnualLoad("Prof Track", ["Chair", "Director of Admissions"])).toBe(0);
+  });
+});
+
+describe("legacy load helpers stay consistent with getComputedAnnualLoad", () => {
+  it("getRoleAdjustment returns the summed release", () => {
+    expect(getRoleAdjustment(["Chair"])).toBe(2.5);
+    expect(getRoleAdjustment(["Director of Graduate Studies", "Director of Admissions"])).toBe(2);
+    expect(getRoleAdjustment(["Associate Chair"])).toBe(0);
+  });
+
+  it("getAdjustedLoad(default, getRoleAdjustment(roles)) equals getComputedAnnualLoad", () => {
+    const cases: { type: FacultyType; roles: string[] }[] = [
+      { type: "Lecture 12", roles: ["Chair"] },
+      { type: "Lecture 10", roles: ["Director of Graduate Studies"] },
+      { type: "Prof Track", roles: ["Chair", "Director of Admissions"] },
+      { type: "Lecture 10", roles: ["Associate Chair"] },
+    ];
+    for (const { type, roles } of cases) {
+      expect(getAdjustedLoad(getDefaultLoad(type), getRoleAdjustment(roles))).toBe(
+        getComputedAnnualLoad(type, roles)
+      );
+    }
   });
 });
 
@@ -166,7 +206,8 @@ describe("validateSemesterPlan", () => {
   it("warns when planned slots are below the expected load", () => {
     const messages = validateSemesterPlan(
       { summer: [], fall: [teachingSlot("f1")], spring: [] },
-      3
+      3,
+      "Prof Track"
     );
     expect(messages).toHaveLength(1);
     expect(messages[0]?.message).toMatch(/Add more slots/);
@@ -179,16 +220,56 @@ describe("validateSemesterPlan", () => {
         fall: [teachingSlot("f1"), teachingSlot("f2")],
         spring: [teachingSlot("s1")],
       },
-      2
+      2,
+      "Prof Track"
     );
     expect(messages).toHaveLength(1);
     expect(messages[0]?.message).toMatch(/exceeds/);
   });
 
   it("returns no messages when the plan matches", () => {
-    expect(validateSemesterPlan({ summer: [], fall: [teachingSlot("f1")], spring: [] }, 1)).toEqual(
-      []
+    expect(
+      validateSemesterPlan({ summer: [], fall: [teachingSlot("f1")], spring: [] }, 1, "Prof Track")
+    ).toEqual([]);
+  });
+
+  it("excludes summer slots from the total when summer does not count toward load", () => {
+    // Lecture 10: a summer slot must not push a complete fall+spring plan over.
+    const messages = validateSemesterPlan(
+      {
+        summer: [teachingSlot("su1")],
+        fall: [teachingSlot("f1"), teachingSlot("f2"), teachingSlot("f3")],
+        spring: [teachingSlot("s1"), teachingSlot("s2"), teachingSlot("s3")],
+      },
+      6,
+      "Lecture 10"
     );
+    expect(messages).toEqual([]);
+  });
+
+  it("counts summer slots toward the total for Lecture 12", () => {
+    const matches = validateSemesterPlan(
+      {
+        summer: [teachingSlot("su1"), teachingSlot("su2")],
+        fall: [teachingSlot("f1"), teachingSlot("f2"), teachingSlot("f3")],
+        spring: [teachingSlot("s1"), teachingSlot("s2"), teachingSlot("s3")],
+      },
+      8,
+      "Lecture 12"
+    );
+    expect(matches).toEqual([]);
+
+    const short = validateSemesterPlan(
+      {
+        summer: [teachingSlot("su1")],
+        fall: [teachingSlot("f1"), teachingSlot("f2"), teachingSlot("f3")],
+        spring: [teachingSlot("s1"), teachingSlot("s2"), teachingSlot("s3")],
+      },
+      8,
+      "Lecture 12"
+    );
+    expect(short).toHaveLength(1);
+    expect(short[0]?.message).toMatch(/Add more slots/);
   });
 });
 
@@ -217,6 +298,39 @@ describe("getNextYearString", () => {
   it("returns empty string for malformed input", () => {
     expect(getNextYearString("2025")).toBe("");
     expect(getNextYearString("abcd-efgh")).toBe("");
+  });
+});
+
+describe("addAcademicYear", () => {
+  const years = [
+    { year: "2024-2025", locked: true },
+    { year: "2025-2026", locked: false },
+  ];
+
+  it("locks all previous years and appends the next year unlocked", () => {
+    const result = addAcademicYear(years, {
+      "2025-2026": { ...createEmptyYearData(), roles: ["Chair"] },
+    });
+    expect(result).not.toBeNull();
+    expect(result?.newYear).toBe("2026-2027");
+    expect(result?.years).toEqual([
+      { year: "2024-2025", locked: true },
+      { year: "2025-2026", locked: true },
+      { year: "2026-2027", locked: false },
+    ]);
+  });
+
+  it("copies the latest year's faculty type and roles into the new year", () => {
+    const result = addAcademicYear(years, {
+      "2025-2026": { ...createEmptyYearData(), facultyType: "Lecture 10", roles: ["Chair"] },
+    });
+    expect(result?.yearData.facultyType).toBe("Lecture 10");
+    expect(result?.yearData.roles).toEqual(["Chair"]);
+  });
+
+  it("returns null when the latest year string is malformed or the list is empty", () => {
+    expect(addAcademicYear([{ year: "not-a-year", locked: false }], {})).toBeNull();
+    expect(addAcademicYear([], {})).toBeNull();
   });
 });
 

@@ -1,0 +1,13 @@
+Database,Table,Col #,Column,Data Type,Nullable,Key,Default,Extra,Charset,Collation,Comment
+ent,ub_entity,1,ub_ent_number,varchar(4),NO,PRI,,,latin1,latin1_swedish_ci,
+ent,ub_entity,2,ub_ent_abbr,varchar(3),YES,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,3,ub_ent_name,varchar(50),YES,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,4,ub_ent_status,varchar(1),NO,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,5,hier_level_1,varchar(2),YES,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,6,hier_level_2,varchar(2),YES,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,7,hier_level_3,varchar(2),YES,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,8,hier_level_4,varchar(2),YES,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,9,hier_level_5,varchar(2),YES,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,10,course_affil,varchar(1),YES,,,,latin1,latin1_swedish_ci,
+ent,ub_entity,11,dt,datetime,YES,,,,,,
+ent,ub_entity,12,ts,timestamp,NO,,CURRENT_TIMESTAMP,DEFAULT_GENERATED on update CURRENT_TIMESTAMP,,,

@@ -2002,6 +2002,11 @@ div.dt-button-background {
   color: var(--ub-blue);
 }
 
+.cp-year-add {
+  border-style: dashed;
+  color: var(--ub-blue);
+}
+
 .cp-year-pill.is-active {
   border-color: var(--ub-blue);
   background: var(--ub-blue);
@@ -2164,6 +2169,88 @@ div.dt-button-background {
 .cp-info-value-strong {
   font-family: var(--font-body-strong);
   color: var(--text-strong);
+}
+
+.leave-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.leave-editor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.leave-editor-table th,
+.leave-editor-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle, #e2e6ea);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.leave-editor-table input,
+.leave-editor-table select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  font: inherit;
+}
+
+.leave-editor-table input:disabled,
+.leave-editor-table select:disabled {
+  background: transparent;
+  border: none;
+  color: var(--text-body);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.leave-editor-empty {
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+}
+
+.leave-editor-delete {
+  background: none;
+  border: 1px solid var(--ub-blue);
+  color: var(--ub-blue);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.leave-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cp-role-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.cp-role-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: var(--text-body);
+  cursor: pointer;
+}
+
+.cp-role-option.is-checked {
+  font-family: var(--font-body-strong);
+  color: var(--text-strong);
+}
+
+.cp-role-option input {
+  cursor: pointer;
 }
 
 .cp-full-release-tag {

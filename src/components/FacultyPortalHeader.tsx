@@ -24,6 +24,9 @@ export default function FacultyPortalHeader() {
           </svg>
           <span>CSE Faculty Portal</span>
         </Link>
+        <Link className="portal-topbar-link" href="/course-tags">
+          <span>Course Area Tags</span>
+        </Link>
       </div>
     </header>
   );

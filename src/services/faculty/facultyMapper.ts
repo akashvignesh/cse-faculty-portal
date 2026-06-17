@@ -274,6 +274,9 @@ export function mapFacultyRecord(record: RawFacultyRecord, index: number): Facul
     statusMessage: normalizeField(record?.statusMessage ?? record?.status_message),
     primaryEmail: normalizeField(record?.primaryEmail ?? record?.primary_email ?? contactEmail),
     secondaryEmail: normalizeField(record?.secondaryEmail ?? record?.secondary_email),
+    phone: normalizeField(
+      record?.phone ?? record?.phone_number ?? record?.primaryPhone ?? record?.primary_phone
+    ),
     physicalAddressLines: normalizeStringArray(
       record?.physicalAddressLines ??
         record?.physical_address_lines ??

@@ -23,11 +23,11 @@ const DPN_JOIN = `
     SELECT person_number, MIN(principal) AS principal
     FROM dce.person_number
     GROUP BY person_number
-  ) dpn ON CONVERT(dpn.person_number USING utf8mb4) = CONVERT(f.person_number USING utf8mb4)`;
+  ) dpn ON CONVERT(dpn.person_number USING utf8mb4) = CONVERT(app.person_number USING utf8mb4)`;
 
 const NAME_JOIN = `
   LEFT JOIN ps_rpt.ub_display_name_v n
-    ON CONVERT(n.emplid USING utf8mb4) = CONVERT(f.person_number USING utf8mb4)`;
+    ON CONVERT(n.emplid USING utf8mb4) = CONVERT(app.person_number USING utf8mb4)`;
 
 interface AddressRow {
   line1: string | null;
@@ -77,15 +77,18 @@ export async function listFaculty(
   const db = getDb();
   const tokens = query.search.trim().split(/\s+/).filter(Boolean);
 
-  // The roster is every person in cfp_faculty who ALSO holds a cfp_appointments
-  // row. The INNER JOIN enforces that filter (cfp_appointments.person_number is
-  // its PK, so it stays one row per person) and keeps the COUNT correct for
-  // pagination. Both person_number columns are utf8mb4 — no CONVERT needed here.
-  const base = db("cfp_faculty as f")
-    .join("cfp_appointments as app", "app.person_number", "f.person_number")
+  // The roster is every person holding a cfp_appointments row, ONE line per
+  // person. SELECT DISTINCT collapses promotion history (multiple appointment
+  // rows per person, once the schema allows it) to a single roster entry and
+  // keeps the COUNT counting people, not appointments. Today person_number is
+  // still the PK so DISTINCT is a no-op — it's here so the roster stays correct
+  // when history rows land. cfp_faculty is only needed where cv_document_id /
+  // the membership gate are read (the detail screen), neither of which this uses.
+  const base = db
+    .from(db.raw("(SELECT DISTINCT person_number FROM cfp_appointments) as app"))
     .joinRaw(NAME_JOIN);
   for (const token of tokens) {
-    void base.whereRaw("COALESCE(n.name_display, f.person_number) LIKE ?", [`%${token}%`]);
+    void base.whereRaw("COALESCE(n.name_display, app.person_number) LIKE ?", [`%${token}%`]);
   }
 
   const countRow = await base
@@ -98,14 +101,14 @@ export async function listFaculty(
     .clone()
     .joinRaw(DPN_JOIN)
     .select(
-      "f.person_number as personNumber",
-      db.raw("COALESCE(n.name_display, f.person_number) as fullName"),
+      "app.person_number as personNumber",
+      db.raw("COALESCE(n.name_display, app.person_number) as fullName"),
       "dpn.principal as userid",
       // Email is derived from the principal: <principal>@buffalo.edu. A NULL
       // principal yields a NULL email, which the mapper normalizes to "".
       db.raw("CONCAT(dpn.principal, '@buffalo.edu') as primaryEmail")
     )
-    .orderByRaw("n.name_display IS NULL, n.name_display ASC, f.person_number ASC")
+    .orderByRaw("n.name_display IS NULL, n.name_display ASC, app.person_number ASC")
     .limit(query.size)
     .offset(query.page * query.size);
 
@@ -198,7 +201,7 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
 
   if (!faculty) return null;
 
-  const [name, userid, appointment, email, address, researchAreas, leaves, awards] =
+  const [name, userid, appointment, email, phone, address, researchAreas, leaves, awards] =
     await Promise.all([
       db
         .select("n.name_display as nameDisplay")
@@ -221,6 +224,17 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
         )
         .from("cfp_appointments as a")
         .where("a.person_number", personNumber)
+        // Current role = the most recently effective appointment. Once the
+        // table holds promotion history (multiple rows per person), this picks
+        // the latest; today person_number is still the PK so there's one row
+        // and the order is a no-op. Rank by the role's start date, not insert
+        // order, so a backfilled correction can't masquerade as the current
+        // role. When a surrogate appointment_id is added, append it as the
+        // final tie-break: .orderBy("a.appointment_id", "desc").
+        .orderBy([
+          { column: "a.appointment_effective_date", order: "desc" },
+          { column: "a.appointment_end_date", order: "desc" },
+        ])
         .first<
           | {
               title: string | null;
@@ -236,6 +250,11 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
         .from("cfp_faculty_primary_email as pe")
         .where("pe.person_number", personNumber)
         .first<{ emailAddress: string } | undefined>(),
+      db
+        .select("pp.phone_number as phoneNumber")
+        .from("cfp_faculty_primary_phone_number as pp")
+        .where("pp.person_number", personNumber)
+        .first<{ phoneNumber: string } | undefined>(),
       db
         .select(
           "pa.address_line1 as line1",
@@ -300,6 +319,13 @@ export async function getFacultyDetail(idOrUserid: string): Promise<RawFacultyRe
     standardLoad: appointment?.standardLoad ?? null,
     nextPromotionDate: appointment?.nextPromotionDate ?? null,
     profilePhotoUrl: null,
+    // Official email is the userid-derived @buffalo.edu address (same rule as the
+    // roster); the personal email from cfp_faculty_primary_email is secondary.
+    // Official/campus address = campusOffice (facilities); personal/mailing
+    // address = cfp_faculty_primary_address (officeAddress below).
+    primaryEmail: facultyUserid ? `${facultyUserid}@buffalo.edu` : null,
+    secondaryEmail: email?.emailAddress ?? null,
+    phone: phone?.phoneNumber ?? null,
     contact: {
       email: email?.emailAddress ?? null,
       officeAddress: toOfficeAddressDto(address),

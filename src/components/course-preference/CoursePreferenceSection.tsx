@@ -21,6 +21,8 @@ export interface CoursePreferenceSectionProps {
   onChange: (preferences: PlannerCoursePreference[]) => void;
   onSave: () => void;
   saveMessage: SaveMessage;
+  /** Live catalog courses; falls back to the mock catalog when empty. */
+  catalog?: CatalogCourse[];
 }
 
 type PreferenceView = "selected" | "not-qualified" | "not-selected";
@@ -43,6 +45,7 @@ export default function CoursePreferenceSection({
   onChange,
   onSave,
   saveMessage,
+  catalog,
 }: CoursePreferenceSectionProps) {
   const [activeView, setActiveView] = useState<PreferenceView>("selected");
   const [retainedNotSelectedCourses, setRetainedNotSelectedCourses] = useState<string[]>([]);
@@ -51,9 +54,15 @@ export default function CoursePreferenceSection({
     () => new Set(retainedNotSelectedCourses),
     [retainedNotSelectedCourses]
   );
+  // Live catalog when available, otherwise the mock catalog (also the fallback
+  // when the courses endpoint is unreachable).
+  const courses = useMemo<CatalogCourse[]>(
+    () => (catalog && catalog.length > 0 ? catalog : (courseCatalogMockData as CatalogCourse[])),
+    [catalog]
+  );
   const courseRows = useMemo(
     () =>
-      (courseCatalogMockData as CatalogCourse[]).map((course) => {
+      courses.map((course) => {
         const pref = prefLookup[course.courseName];
         return {
           course,
@@ -62,7 +71,7 @@ export default function CoursePreferenceSection({
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [preferences]
+    [preferences, courses]
   );
   const selectedRows = courseRows.filter((row) => row.currentRank !== null && row.currentRank > 0);
   const notQualifiedRows = courseRows.filter((row) => row.currentRank === 0);
@@ -76,7 +85,7 @@ export default function CoursePreferenceSection({
           );
   const selectedCount = selectedRows.length;
   const notQualifiedCount = notQualifiedRows.length;
-  const notSelectedCount = courseCatalogMockData.length - preferences.length;
+  const notSelectedCount = courses.length - preferences.length;
 
   function handleRankClick(course: CatalogCourse, rank: number) {
     const existing = prefLookup[course.courseName];

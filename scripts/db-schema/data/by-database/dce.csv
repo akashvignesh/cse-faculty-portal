@@ -1,0 +1,6 @@
+Database,Table,Col #,Column,Data Type,Nullable,Key,Default,Extra,Charset,Collation,Comment
+dce,person_number,1,person_number,varchar(8),NO,PRI,,,latin1,latin1_swedish_ci,
+dce,person_number,2,principal,varchar(8),NO,PRI,,,latin1,latin1_swedish_ci,
+dce,person_number,3,status,char(1),YES,,,,latin1,latin1_swedish_ci,
+dce,person_number,4,unix_uid,int,YES,,,,,,
+dce,person_number,5,dt,datetime,YES,,,,,,

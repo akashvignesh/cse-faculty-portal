@@ -14,10 +14,14 @@ import { env, isDbMode } from "./env";
 export const WRITABLE_TABLES: ReadonlySet<string> = new Set([
   "cfp_faculty_course_plan",
   "cfp_faculty_semester_plan",
+  "cfp_faculty_role",
   "cfp_committee_catalog",
   "cfp_committee_assignment",
   "cfp_service_categories",
   "cfp_committee_service_summary",
+  "cfp_faculty_leave",
+  "cfp_area_tag_master",
+  "cfp_course_area_tag",
 ]);
 
 function createKnex(): Knex {

@@ -1,0 +1,15 @@
+Database,Tables,Columns,FKs,Views,Status
+budget,10,142,0,0,OK
+committees,2,17,1,0,OK
+courses,11,106,0,0,OK
+dce,1,5,0,0,OK
+ent,1,12,0,0,OK
+facilities,8,72,0,0,OK
+lok,7,32,0,0,OK
+network,1,11,0,0,OK
+people,24,210,0,0,OK
+ps_rpt,20,279,0,0,OK
+research,22,191,0,0,OK
+sunycard,3,12,0,0,OK
+ubs_emp,18,149,2,0,OK
+ubs_rf,2,16,0,0,OK

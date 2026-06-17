@@ -1,0 +1,13 @@
+Database,Table,Col #,Column,Data Type,Nullable,Key,Default,Extra,Charset,Collation,Comment
+sunycard,cfp_cse_faculty_photos_v,1,principal,varchar(8),NO,,,,utf8mb4,utf8mb4_0900_ai_ci,
+sunycard,cfp_cse_faculty_photos_v,2,person_number,varchar(8),NO,PRI,,,utf8mb4,utf8mb4_0900_ai_ci,
+sunycard,cfp_cse_faculty_photos_v,3,image,mediumblob,YES,,,,,,
+sunycard,cfp_cse_faculty_photos_v,4,ts,timestamp,NO,,CURRENT_TIMESTAMP,DEFAULT_GENERATED on update CURRENT_TIMESTAMP,,,
+sunycard,cse_grad_photos_v,1,principal,varchar(8),NO,,,,latin1,latin1_swedish_ci,
+sunycard,cse_grad_photos_v,2,person_number,varchar(8),NO,PRI,,,latin1,latin1_swedish_ci,
+sunycard,cse_grad_photos_v,3,image,blob,YES,,,,,,
+sunycard,cse_grad_photos_v,4,ts,timestamp,NO,,CURRENT_TIMESTAMP,DEFAULT_GENERATED on update CURRENT_TIMESTAMP,,,
+sunycard,cse_photos_v,1,principal,varchar(8),NO,,,,latin1,latin1_swedish_ci,
+sunycard,cse_photos_v,2,person_number,varchar(8),NO,PRI,,,latin1,latin1_swedish_ci,
+sunycard,cse_photos_v,3,image,mediumblob,YES,,,,,,
+sunycard,cse_photos_v,4,ts,timestamp,NO,,CURRENT_TIMESTAMP,DEFAULT_GENERATED on update CURRENT_TIMESTAMP,,,

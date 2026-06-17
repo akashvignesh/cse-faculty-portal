@@ -39,8 +39,34 @@ export function useFacultyDetail(userid: string): FacultyDetailState {
 
       try {
         const record = await fetchFacultyDetail(userid);
-        if (isActive) {
-          setFaculty(record);
+        if (!isActive) return;
+        setFaculty(record);
+
+        // Background prefetch: once the core profile is painted, pull the lazy
+        // tab sections in parallel (non-blocking, fail-soft) so opening a tab is
+        // instant. We mark each section fetched up front so a later tab click
+        // won't double-fetch; on failure we unmark it so the click can retry.
+        const id = record.userid || record.personNumber;
+        const merge = (patch: Partial<Faculty>) =>
+          isActive && setFaculty((current) => (current ? { ...current, ...patch } : current));
+
+        if (record.teachingHistory.rows.length === 0) {
+          fetchedSections.current.add("teaching-history");
+          void fetchTeachingHistory(id)
+            .then((teachingHistory) => merge({ teachingHistory }))
+            .catch(() => fetchedSections.current.delete("teaching-history"));
+        }
+        if (record.committees.length === 0) {
+          fetchedSections.current.add("committees");
+          void fetchCommitteeMemberships(record.userid || id)
+            .then((committees) => merge({ committees }))
+            .catch(() => fetchedSections.current.delete("committees"));
+        }
+        if (record.coursePreferences.length === 0) {
+          fetchedSections.current.add("course-preferences");
+          void fetchCoursePreferences(id)
+            .then((coursePreferences) => merge({ coursePreferences }))
+            .catch(() => fetchedSections.current.delete("course-preferences"));
         }
       } catch (error) {
         if (!isActive) return;

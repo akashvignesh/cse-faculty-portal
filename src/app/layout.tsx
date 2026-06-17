@@ -36,7 +36,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           />
         ))}
       </head>
-      <body>
+      {/* suppressHydrationWarning: browser extensions (e.g. Grammarly) inject
+          attributes like data-gr-ext-installed onto <body> before React
+          hydrates. This suppresses the resulting attribute-mismatch warning for
+          this element only (one level deep) — it does not mask real mismatches
+          in the component tree below. */}
+      <body suppressHydrationWarning>
         <div className="portal-page-shell">
           <div className="portal-page">
             <FacultyPortalHeader />

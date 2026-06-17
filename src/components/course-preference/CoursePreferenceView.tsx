@@ -11,9 +11,12 @@ import {
 import { EditorError } from "@/lib/editor/client";
 import { displayValue } from "@/lib/format";
 import {
+  loadStoredRoles,
   loadStoredYearPlan,
   saveCourseRankings,
+  saveRoles,
   saveYearPlan,
+  type StoredRoles,
   type StoredYearPlan,
 } from "@/services/course-plan/coursePlanService";
 import { fetchFacultyDetail } from "@/services/faculty/facultyDetailService";
@@ -21,10 +24,12 @@ import type { Faculty, PlannerCoursePreference, SemesterSlot, YearData } from "@
 import AcademicYearSelector from "./AcademicYearSelector";
 import CoursePreferenceSection, { type SaveMessage } from "./CoursePreferenceSection";
 import {
+  addAcademicYear,
   applyBiannualCarryIn,
   createEmptyYearData,
   getBiannualCarryInSlots,
   getComputedAnnualLoad,
+  SUMMER_COUNTS_TOWARD_LOAD,
   validateSemesterPlan,
 } from "./coursePreferenceUtils";
 import FacultyInfoCard from "./FacultyInfoCard";
@@ -35,7 +40,7 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
   const [faculty, setFaculty] = useState<Faculty | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [allYears] = useState([...INITIAL_ACADEMIC_YEARS]);
+  const [allYears, setAllYears] = useState([...INITIAL_ACADEMIC_YEARS]);
   const [selectedYear, setSelectedYear] = useState(
     INITIAL_ACADEMIC_YEARS[INITIAL_ACADEMIC_YEARS.length - 1]?.year ?? ""
   );
@@ -45,8 +50,11 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
   const [isSaving, setIsSaving] = useState(false);
   // Editor backend availability + per-year stored plans (diff/upsert baseline).
   const [storedPlans, setStoredPlans] = useState<Record<string, StoredYearPlan | null>>({});
+  const [storedRoles, setStoredRoles] = useState<Record<string, StoredRoles | null>>({});
   const [editorAvailable, setEditorAvailable] = useState(false);
   const [prefsBaseline, setPrefsBaseline] = useState<Record<string, PlannerCoursePreference[]>>({});
+  // Live catalog for the course-preference grid (empty → grid falls back to mock).
+  const [catalog, setCatalog] = useState<{ subject: string; courseName: string }[]>([]);
 
   useEffect(() => {
     let isActive = true;
@@ -88,6 +96,33 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
       ? `${faculty.name} - Course Preference | ${APP_TITLE}`
       : `Course Preference | ${APP_TITLE}`;
   }, [faculty]);
+
+  // Load the active course catalog once. In db mode this is the live catalog;
+  // in mock mode the endpoint echoes the same mock list the grid falls back to.
+  useEffect(() => {
+    let isActive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/v1/courses/active", {
+          headers: { Accept: "application/json" },
+        });
+        const payload = (await res.json()) as {
+          success: boolean;
+          data?: { subject: string; courseName: string }[];
+        };
+        if (isActive && res.ok && payload.success && Array.isArray(payload.data)) {
+          setCatalog(
+            payload.data.map((c) => ({ subject: c.subject, courseName: c.courseName }))
+          );
+        }
+      } catch {
+        // Leave catalog empty; CoursePreferenceSection falls back to the mock list.
+      }
+    })();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!faculty) return;
@@ -140,32 +175,43 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
       if (!faculty?.personNumber || selectedYear in storedPlans) return;
 
       try {
-        const { available, plan } = await loadStoredYearPlan(faculty.personNumber, selectedYear);
+        const [{ available, plan }, rolesResult] = await Promise.all([
+          loadStoredYearPlan(faculty.personNumber, selectedYear),
+          loadStoredRoles(faculty.personNumber, selectedYear),
+        ]);
         if (!isActive) return;
 
         setEditorAvailable(available);
         setStoredPlans((current) => ({ ...current, [selectedYear]: plan }));
+        setStoredRoles((current) => ({ ...current, [selectedYear]: rolesResult.stored }));
 
-        if (plan) {
+        const storedRoleList = rolesResult.stored?.roles ?? null;
+        if (plan || storedRoleList) {
           setYearDataMap((current) => {
             const base = current[selectedYear] ?? createEmptyYearData();
             return {
               ...current,
               [selectedYear]: {
                 ...base,
-                facultyType: plan.facultyType ?? base.facultyType,
-                semesterPlan: plan.semesterPlan,
-                requestedLoad: {
-                  summer: plan.semesterPlan.summer.length,
-                  fall: plan.semesterPlan.fall.length,
-                  spring: plan.semesterPlan.spring.length,
-                },
+                ...(plan
+                  ? {
+                      facultyType: plan.facultyType ?? base.facultyType,
+                      semesterPlan: plan.semesterPlan,
+                      requestedLoad: {
+                        summer: plan.semesterPlan.summer.length,
+                        fall: plan.semesterPlan.fall.length,
+                        spring: plan.semesterPlan.spring.length,
+                      },
+                    }
+                  : {}),
+                // A stored role set (even empty) is authoritative over the mock.
+                roles: storedRoleList ?? base.roles,
               },
             };
           });
         }
       } catch {
-        // Stored-plan overlay is best effort; the mock scaffolding still works.
+        // Stored overlay is best effort; the mock scaffolding still works.
       }
     }
 
@@ -188,6 +234,18 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
   function handleSelectYear(year: string) {
     setSelectedYear(year);
     setSaveMessage({ text: "", type: "" });
+  }
+
+  function handleAddYear() {
+    const result = addAcademicYear(allYears, yearDataMap);
+    if (!result) return;
+    setAllYears(result.years);
+    setYearDataMap((prev) => ({ ...prev, [result.newYear]: result.yearData }));
+    setSelectedYear(result.newYear);
+    setSaveMessage({
+      text: `Added ${result.newYear}. Previous years are now locked; review and Save to persist.`,
+      type: "success",
+    });
   }
 
   function updateCurrentYearData(updater: (prev: YearData) => YearData) {
@@ -218,6 +276,15 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
     }));
   }
 
+  function handleToggleRole(role: string) {
+    updateCurrentYearData((prev) => ({
+      ...prev,
+      roles: prev.roles.includes(role)
+        ? prev.roles.filter((r) => r !== role)
+        : [...prev.roles, role],
+    }));
+  }
+
   async function handleSaveSemesterPlan() {
     if (!faculty) return;
 
@@ -242,10 +309,22 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
         storedPlan: stored,
       });
 
-      // Refresh the baseline so the next save diffs against what is stored.
-      const refreshed = await loadStoredYearPlan(faculty.personNumber, selectedYear);
+      // Persist the per-year roles alongside the plan.
+      await saveRoles(
+        faculty.personNumber,
+        selectedYear,
+        currentYearData.roles,
+        storedRoles[selectedYear] ?? null
+      );
+
+      // Refresh the baselines so the next save diffs against what is stored.
+      const [refreshed, refreshedRoles] = await Promise.all([
+        loadStoredYearPlan(faculty.personNumber, selectedYear),
+        loadStoredRoles(faculty.personNumber, selectedYear),
+      ]);
       const refreshedPlan = refreshed.plan;
       setStoredPlans((current) => ({ ...current, [selectedYear]: refreshedPlan }));
+      setStoredRoles((current) => ({ ...current, [selectedYear]: refreshedRoles.stored }));
       if (refreshedPlan) {
         setYearDataMap((current) => ({
           ...current,
@@ -300,8 +379,14 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
     const annualLoad = getComputedAnnualLoad(currentYearData.facultyType, currentYearData.roles);
     const expectedSlots = Math.ceil(annualLoad);
     const sp = currentYearData.semesterPlan;
-    const totalSlots = (sp.summer?.length ?? 0) + (sp.fall?.length ?? 0) + (sp.spring?.length ?? 0);
-    const planWarnings = validateSemesterPlan(sp, annualLoad);
+    // Summer only counts toward the load for Lecture 12 (PDF p4), so keep the
+    // "planned" tally consistent with validateSemesterPlan's total.
+    const countsSummer = SUMMER_COUNTS_TOWARD_LOAD[currentYearData.facultyType] ?? false;
+    const totalSlots =
+      (countsSummer ? (sp.summer?.length ?? 0) : 0) +
+      (sp.fall?.length ?? 0) +
+      (sp.spring?.length ?? 0);
+    const planWarnings = validateSemesterPlan(sp, annualLoad, currentYearData.facultyType);
 
     return (
       <>
@@ -432,6 +517,7 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                     faculty={faculty}
                     yearData={currentYearData}
                     isLocked={isCurrentYearLocked}
+                    onToggleRole={handleToggleRole}
                   />
 
                   <div className="cp-tab-shell">
@@ -466,6 +552,7 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                         years={allYears}
                         selectedYear={selectedYear}
                         onSelectYear={handleSelectYear}
+                        onAddYear={handleAddYear}
                       />
 
                       {activeTab === "semester" ? (
@@ -477,6 +564,7 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                           onChange={updateCoursePreferences}
                           onSave={handleSaveCoursePreferences}
                           saveMessage={saveMessage}
+                          catalog={catalog}
                         />
                       )}
                     </div>
