@@ -9,6 +9,11 @@ add a field at each layer. All SQL is server-side only, in two places:
    (generated CRUD SQL for the editable `cfp_*` tables in the
    `WRITABLE_TABLES` allowlist — ten tables as of this writing).
 
+> This document covers *storage*. For the *behaviour* the app layers on top
+> (load math, role releases, semester-plan validation, the 0–5 preference
+> scale, academic-year locking, biannual carry-forward, the committee-matrix
+> code mapping, …) see [`business-logic.md`](business-logic.md).
+
 ```
 Browser (components/, services/)            ← fetch JSON only, never SQL
   └── /api/v1/* route handlers (src/app/api/v1)

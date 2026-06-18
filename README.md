@@ -70,6 +70,19 @@ DEV_USERID=...     # stamped into cfp_* audit columns until real auth lands
 If the tunnel is down, API routes answer `503` with a clear message instead
 of hanging.
 
+## Documentation
+
+- [`docs/business-logic.md`](docs/business-logic.md) — every domain rule the
+  portal encodes: faculty types & load, role releases, semester planning &
+  validation, the 0–5 (NQ) preference scale, academic-year locking, biannual
+  carry-forward, leaves, the committee matrix, and area tags.
+- [`docs/sql-reference.md`](docs/sql-reference.md) — every database call: where
+  it lives, what it touches, how to add a field at each layer.
+- [`docs/api-sql-flowchart.md`](docs/api-sql-flowchart.md) — request → route →
+  query → table flow.
+- [`docs/deployment.md`](docs/deployment.md) — Docker / self-hosted-runner
+  deploy on a2il-01.
+
 ## Architecture
 
 ```
