@@ -4,7 +4,14 @@ import type { AcademicYearOption } from "@/data/coursePreferenceMockData";
 
 function LockIcon() {
   return (
-    <svg className="cp-year-lock-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <svg
+      className="cp-year-lock-icon"
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path d="M11.5 7V5.5a3.5 3.5 0 0 0-7 0V7H3v7.5h10V7h-1.5ZM6 5.5a2 2 0 1 1 4 0V7H6V5.5Z" />
     </svg>
   );

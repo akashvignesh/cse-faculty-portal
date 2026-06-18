@@ -18,6 +18,8 @@ function RosterTitle() {
         <svg
           className="faculty-table-title-icon"
           viewBox="0 0 16 16"
+          width="22"
+          height="22"
           aria-hidden="true"
           focusable="false"
         >

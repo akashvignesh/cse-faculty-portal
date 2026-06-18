@@ -5,6 +5,8 @@ function HomeIcon() {
     <svg
       className="portal-footer-home-icon"
       viewBox="0 0 16 16"
+      width="18"
+      height="18"
       aria-hidden="true"
       focusable="false"
     >

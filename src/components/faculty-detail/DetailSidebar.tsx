@@ -49,6 +49,8 @@ export default function DetailSidebar({ userid, activePage }: DetailSidebarProps
               <span className="faculty-detail-dashboard-icon" aria-hidden="true">
                 <svg
                   viewBox="0 0 16 16"
+                  width="12"
+                  height="12"
                   className="faculty-detail-dashboard-icon-svg"
                   focusable="false"
                 >
