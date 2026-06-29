@@ -29,10 +29,13 @@ import {
   createEmptyYearData,
   getBiannualCarryInSlots,
   getComputedAnnualLoad,
+  getDefaultSemesterDistribution,
   SUMMER_COUNTS_TOWARD_LOAD,
+  syncSemesterPlanToRequestedLoad,
   validateSemesterPlan,
 } from "./coursePreferenceUtils";
 import FacultyInfoCard from "./FacultyInfoCard";
+import LoadSummaryCard from "./LoadSummaryCard";
 import SemesterLoadSection from "./SemesterLoadSection";
 import SemesterPlanningTable from "./SemesterPlanningTable";
 
@@ -277,12 +280,20 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
   }
 
   function handleToggleRole(role: string) {
-    updateCurrentYearData((prev) => ({
-      ...prev,
-      roles: prev.roles.includes(role)
+    updateCurrentYearData((prev) => {
+      const newRoles = prev.roles.includes(role)
         ? prev.roles.filter((r) => r !== role)
-        : [...prev.roles, role],
-    }));
+        : [...prev.roles, role];
+      const newAnnualLoad = getComputedAnnualLoad(prev.facultyType, newRoles);
+      const newRequestedLoad = getDefaultSemesterDistribution(newAnnualLoad);
+      const newSemesterPlan = syncSemesterPlanToRequestedLoad(prev.semesterPlan, newRequestedLoad);
+      return {
+        ...prev,
+        roles: newRoles,
+        requestedLoad: newRequestedLoad,
+        semesterPlan: newSemesterPlan,
+      };
+    });
   }
 
   async function handleSaveSemesterPlan() {
@@ -519,6 +530,8 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                     isLocked={isCurrentYearLocked}
                     onToggleRole={handleToggleRole}
                   />
+
+                  <LoadSummaryCard yearData={currentYearData} />
 
                   <div className="cp-tab-shell">
                     <div
