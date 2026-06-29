@@ -138,12 +138,12 @@ export default function CoursePreferenceSection({
             <button
               type="button"
               role="tab"
-              aria-selected={activeView === "not-qualified"}
-              className={`cp-pref-view-tab cp-pref-view-tab-nq${activeView === "not-qualified" ? " is-active" : ""}`}
-              onClick={() => setActiveView("not-qualified")}
+              aria-selected={activeView === "not-selected"}
+              className={`cp-pref-view-tab${activeView === "not-selected" ? " is-active" : ""}`}
+              onClick={() => setActiveView("not-selected")}
             >
-              Not Qualified
-              <span>{notQualifiedCount}</span>
+              Not Selected
+              <span>{notSelectedCount}</span>
             </button>
             <button
               type="button"
@@ -158,12 +158,12 @@ export default function CoursePreferenceSection({
             <button
               type="button"
               role="tab"
-              aria-selected={activeView === "not-selected"}
-              className={`cp-pref-view-tab${activeView === "not-selected" ? " is-active" : ""}`}
-              onClick={() => setActiveView("not-selected")}
+              aria-selected={activeView === "not-qualified"}
+              className={`cp-pref-view-tab cp-pref-view-tab-nq${activeView === "not-qualified" ? " is-active" : ""}`}
+              onClick={() => setActiveView("not-qualified")}
             >
-              Not Selected
-              <span>{notSelectedCount}</span>
+              Not Qualified
+              <span>{notQualifiedCount}</span>
             </button>
           </div>
 
