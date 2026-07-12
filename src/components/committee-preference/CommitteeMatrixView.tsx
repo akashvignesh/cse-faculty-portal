@@ -281,13 +281,13 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                     <span>&gt;</span>
                     <Link href={`/faculty/${faculty.userid}`}>Faculty</Link>
                     <span>&gt;</span>
-                    <span>Edit Committee Preference</span>
+                    <span>Role and Committee Assignments</span>
                   </nav>
                 </section>
 
                 <section className="faculty-secondary-card">
                   <div className="faculty-committee-heading">
-                    <h2>Edit Committee Preference</h2>
+                    <h2>Role and Committee Assignment</h2>
                     <p>
                       Faculty committee membership assignments for {academicYear}
                       {dataSource === "mock" ? " (mock data)" : ""}.

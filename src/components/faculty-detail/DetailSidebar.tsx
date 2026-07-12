@@ -21,13 +21,13 @@ const NAV_ITEMS: {
   },
   {
     page: "course-preference",
-    label: "Edit Course Preference",
+    label: "Course Preferences",
     href: (userid) => `/faculty/${userid}/course-preference`,
     icon: "M3 4.25h10v1.5H3Zm0 3h10v1.5H3Zm0 3h10v1.5H3Z",
   },
   {
     page: "committee-preference",
-    label: "Edit Committee Preference",
+    label: "Role and Committee Assignments",
     href: (userid) => `/faculty/${userid}/committee-preference`,
     icon: "M2 2h5v5H2zm7 0h5v5H9zM2 9h5v5H2zm7 0h5v5H9z",
   },

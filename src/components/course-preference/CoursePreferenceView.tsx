@@ -497,13 +497,13 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                     <span aria-hidden="true">&gt;</span>
                     <Link href={`/faculty/${faculty.userid}`}>{faculty.name}</Link>
                     <span aria-hidden="true">&gt;</span>
-                    <span>Course Preference</span>
+                    <span>Course Preferences</span>
                   </nav>
                 </section>
 
                 <div className="cp-page-heading">
                   <div>
-                    <h2 className="cp-page-title">Course Preference</h2>
+                    <h2 className="cp-page-title">Course Preferences</h2>
                     <p className="cp-page-subtitle">{faculty.name}</p>
                   </div>
 
