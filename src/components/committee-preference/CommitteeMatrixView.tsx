@@ -74,6 +74,7 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
   const [submitError, setSubmitError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showCounts, setShowCounts] = useState(false);
+  const [showReportsMenu, setShowReportsMenu] = useState(false);
 
   const roleCols = useMemo(() => columns.filter((c) => c.type === "role"), [columns]);
   const committeeCols = useMemo(() => columns.filter((c) => c.type === "committee"), [columns]);
@@ -141,8 +142,8 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
 
   useEffect(() => {
     document.title = faculty
-      ? `${faculty.name} Edit Committee Preference | ${APP_TITLE}`
-      : `Edit Committee Preference | ${APP_TITLE}`;
+      ? `${faculty.name} Roles and Committees | ${APP_TITLE}`
+      : `Roles and Committees | ${APP_TITLE}`;
   }, [faculty]);
 
   function getValue(uid: string, committeeId: number): string {
@@ -281,13 +282,13 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                     <span>&gt;</span>
                     <Link href={`/faculty/${faculty.userid}`}>Faculty</Link>
                     <span>&gt;</span>
-                    <span>Edit Committee Preference</span>
+                    <span>Roles and Committees</span>
                   </nav>
                 </section>
 
                 <section className="faculty-secondary-card">
                   <div className="faculty-committee-heading">
-                    <h2>Edit Committee Preference</h2>
+                    <h2>Roles and Committees</h2>
                     <p>
                       Faculty committee membership assignments for {academicYear}
                       {dataSource === "mock" ? " (mock data)" : ""}.
@@ -308,17 +309,52 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                             </span>
                           ))}
                         </div>
-                        <button
-                          type="button"
-                          className="committee-counts-toggle"
-                          onClick={() => setShowCounts((c) => !c)}
-                          aria-expanded={showCounts}
-                        >
-                          <span className="committee-counts-toggle-icon" aria-hidden="true">
-                            {showCounts ? "▼" : "▶"}
-                          </span>
-                          {showCounts ? "Hide Column Counts" : "Show Column Counts"}
-                        </button>
+
+                        <div className="committee-matrix-toolbar-actions">
+                          <button
+                            type="button"
+                            className="committee-counts-toggle"
+                            onClick={() => setShowCounts((c) => !c)}
+                            aria-expanded={showCounts}
+                          >
+                            <span className="committee-counts-toggle-icon" aria-hidden="true">
+                              {showCounts ? "▼" : "▶"}
+                            </span>
+                            {showCounts ? "Hide Column Counts" : "Show Column Counts"}
+                          </button>
+
+                          <div className="committee-reports-dropdown">
+                            <button
+                              type="button"
+                              className="committee-reports-toggle"
+                              onClick={() => setShowReportsMenu((v) => !v)}
+                              aria-expanded={showReportsMenu}
+                              aria-haspopup="menu"
+                            >
+                              Reports ▾
+                            </button>
+                            {showReportsMenu ? (
+                              <div className="committee-reports-menu" role="menu">
+                                <Link
+                                  href={`/faculty/${faculty.userid}/committee-preference/reports/by-name`}
+                                  className="committee-reports-menu-item"
+                                  role="menuitem"
+                                  onClick={() => setShowReportsMenu(false)}
+                                >
+                                  By Name
+                                </Link>
+                                <Link
+                                  href={`/faculty/${faculty.userid}/committee-preference/reports/by-committee`}
+                                  className="committee-reports-menu-item"
+                                  role="menuitem"
+                                  onClick={() => setShowReportsMenu(false)}
+                                >
+                                  By Committee
+                                </Link>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
 
                       {/* ── Matrix table ── */}
