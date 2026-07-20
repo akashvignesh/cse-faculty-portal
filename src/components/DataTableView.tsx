@@ -42,12 +42,18 @@ export default function DataTableView({
         return;
       }
 
-      const DataTableModule = await import("datatables.net-dt");
+      const [jsZipModule, DataTableModule] = await Promise.all([
+        import("jszip"),
+        import("datatables.net-dt"),
+      ]);
       await import("datatables.net-buttons-dt");
       // @ts-expect-error side-effect plugin import without type declarations
       await import("datatables.net-buttons/js/buttons.html5");
       // @ts-expect-error side-effect plugin import without type declarations
       await import("datatables.net-buttons/js/buttons.colVis");
+
+      // excelHtml5 buttons need JSZip on the global scope.
+      (globalThis as unknown as { JSZip: unknown }).JSZip = jsZipModule.default ?? jsZipModule;
 
       const DataTable = DataTableModule.default;
 
