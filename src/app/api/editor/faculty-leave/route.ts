@@ -10,8 +10,11 @@ import { LEAVE_TYPES } from "@/lib/leaveTypes";
 
 const TABLE = "cfp_faculty_leave";
 
-function buildEditor(): Editor {
-  return createEditor(TABLE, "leave_id").fields(
+async function buildEditor(): Promise<Editor> {
+  const { editor, session } = await createEditor(TABLE, "leave_id", {
+    resource: "faculty-leave",
+  });
+  return editor.fields(
     // Pkey as read-only field so GET rows are self-describing.
     new Field(`${TABLE}.leave_id`).set(false),
     new Field(`${TABLE}.person_number`)
@@ -25,13 +28,13 @@ function buildEditor(): Editor {
     new Field(`${TABLE}.location`),
     new Field(`${TABLE}.reason`),
     new Field(`${TABLE}.backup_person_number`).validator(Validate.maxLen(8)),
-    ...auditFields(TABLE)
+    ...auditFields(TABLE, session)
   );
 }
 
 /** GET /api/editor/faculty-leave?person_number=... */
 export const GET = withErrorHandler(async (request: Request) => {
-  const editor = buildEditor();
+  const editor = await buildEditor();
   const personNumber = new URL(request.url).searchParams.get("person_number");
   if (personNumber) {
     editor.where(`${TABLE}.person_number`, personNumber);
@@ -43,7 +46,7 @@ export const GET = withErrorHandler(async (request: Request) => {
 /** POST /api/editor/faculty-leave — Editor protocol create/edit/remove */
 export const POST = withErrorHandler(async (request: Request) => {
   const body = await parseEditorBody(request);
-  const editor = buildEditor();
+  const editor = await buildEditor();
   await editor.process(body);
   return NextResponse.json(editor.data());
 });

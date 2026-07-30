@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import Editor, { Field, Validate } from "datatables.net-editor-server";
 import { withErrorHandler } from "@/lib/api/errors";
+import { requirePermission } from "@/lib/api/guard";
 import { parseEditorBody } from "@/lib/editor/body";
 import { academicYearValidator, auditFields, createEditor } from "@/lib/editor/factory";
 
@@ -13,8 +14,12 @@ const CATALOG = "cfp_committee_catalog";
 /** P=Position holder, C=Chair, V=Vice-Chair, X=Member, A=Alternate. */
 const ROLE_CODES = ["P", "C", "V", "X", "A"];
 
-function buildEditor(): Editor {
-  return createEditor(TABLE, "assignment_id")
+async function buildEditor(): Promise<Editor> {
+  const { editor, session } = await createEditor(TABLE, "assignment_id", {
+    resource: "committee-assignment",
+    ownership: "userid",
+  });
+  return editor
     .fields(
       // Pkey as read-only field so GET rows are self-describing.
       new Field(`${TABLE}.assignment_id`).set(false),
@@ -26,7 +31,7 @@ function buildEditor(): Editor {
       new Field(`${TABLE}.academic_year`)
         .validator(Validate.notEmpty())
         .validator(academicYearValidator),
-      ...auditFields(TABLE),
+      ...auditFields(TABLE, session),
       // Read-only joined catalog columns for display.
       new Field(`${CATALOG}.name`).set(false),
       new Field(`${CATALOG}.kind`).set(false),
@@ -48,7 +53,8 @@ function applyFilters(editor: Editor, url: URL): void {
 
 /** GET /api/editor/committee-assignments?academic_year=2025-2026&userid= */
 export const GET = withErrorHandler(async (request: Request) => {
-  const editor = buildEditor();
+  await requirePermission("committee:view");
+  const editor = await buildEditor();
   applyFilters(editor, new URL(request.url));
   await editor.process({});
   return NextResponse.json(editor.data());
@@ -57,7 +63,7 @@ export const GET = withErrorHandler(async (request: Request) => {
 /** POST /api/editor/committee-assignments — Editor protocol create/edit/remove */
 export const POST = withErrorHandler(async (request: Request) => {
   const body = await parseEditorBody(request);
-  const editor = buildEditor();
+  const editor = await buildEditor();
   await editor.process(body);
   return NextResponse.json(editor.data());
 });

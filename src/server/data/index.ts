@@ -5,13 +5,17 @@ import type { FacultyDataSource } from "./types";
 
 // The DB implementation is loaded lazily so local mode never touches knex.
 async function dbSource(): Promise<FacultyDataSource> {
-  const [faculty, teachingHistory, teachingPrefs, committees, courses] = await Promise.all([
-    import("@/server/queries/faculty"),
-    import("@/server/queries/teachingHistory"),
-    import("@/server/queries/teachingPrefs"),
-    import("@/server/queries/committees"),
-    import("@/server/queries/courses"),
-  ]);
+  const [faculty, teachingHistory, teachingPrefs, committees, courses, roles, identity, profile] =
+    await Promise.all([
+      import("@/server/queries/faculty"),
+      import("@/server/queries/teachingHistory"),
+      import("@/server/queries/teachingPrefs"),
+      import("@/server/queries/committees"),
+      import("@/server/queries/courses"),
+      import("@/server/queries/roles"),
+      import("@/server/queries/identity"),
+      import("@/server/queries/profile"),
+    ]);
   return {
     listFaculty: faculty.listFaculty,
     getFacultyDetail: faculty.getFacultyDetail,
@@ -21,6 +25,10 @@ async function dbSource(): Promise<FacultyDataSource> {
     saveTeachingPreferences: teachingPrefs.saveTeachingPreferences,
     getActiveCourses: courses.getActiveCourses,
     getCommitteeMemberships: committees.getCommitteeMemberships,
+    getUserRole: roles.getUserRole,
+    resolvePersonNumber: identity.resolvePersonNumber,
+    getFacultyProfile: profile.getFacultyProfile,
+    saveFacultyProfile: profile.saveFacultyProfile,
   };
 }
 

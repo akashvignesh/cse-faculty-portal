@@ -288,13 +288,81 @@ Theory / Special Topics**) is many-to-many with courses via
 
 ---
 
-## 12. Cross-cutting invariants
+## 12. Role-based access control (RBAC)
+
+Source: [`permissions.ts`](../src/lib/permissions.ts) (the matrix, shared by
+server and client), [`rbac.ts`](../src/lib/editor/rbac.ts) (server guard,
+attached to every Editor route by [`factory.ts`](../src/lib/editor/factory.ts)),
+[`AuthProvider.tsx`](../src/components/auth/AuthProvider.tsx) (UI gating),
+[`roles.ts`](../src/server/queries/roles.ts) (role lookup).
+
+Four roles; each editable resource has a department-wide `:edit` tier and,
+where it makes sense, an `:edit-own` tier (only rows the signed-in person
+owns). **Deny by default; the server is authoritative — UI hiding is UX.**
+
+| Resource (owner key) | chair | staff | faculty | viewer |
+| -------------------- | ----- | ----- | ------- | ------ |
+| course-plan / semester-plan (`person_number`) | all | all | own | — |
+| faculty-role (`person_number`) | all | all | own | — |
+| committee management¹ (assignments, catalog, service summary/categories) | all | — | — | — |
+| faculty-leave | all | all | — | — |
+| course-tags (both tables) | all | all | — | — |
+| teaching-prefs (`userid`) | all | all | own | — |
+| profile² (`person_number`) | all | all | own | — |
+| user-role (role assignments) | all | all³ | — | — |
+| reads (all other GET endpoints/pages) | yes | yes | yes | yes |
+
+¹ Committee management is **exclusively the chair's**: writes AND reads. The
+matrix page (`/faculty/:userid/committee-preference`) and its four data
+endpoints (`/api/editor/committee-assignments`, `committee-catalog`,
+`service-summary`, `service-categories`) require the `committee:view`
+permission (`requirePermission()` in `src/lib/api/guard.ts` gates the GETs).
+Everyone can still see the read-only **Committee tab** on faculty profiles
+(`/api/v1/committees/memberships` stays open) — it simply reflects whatever
+the chair changed. Each cell is one boolean in the `ACCESS` grid in
+`permissions.ts`; flip it to change the policy.
+
+² Profile editing covers the **department-owned contact fields** only —
+personal email, phone, personal address, and research areas — via
+`PATCH /api/v1/faculty/[id]/profile` (`FacultyDetailView` Edit mode; whole-page
+edit with per-field pencils and Apply/Cancel). Upstream fields (name, title,
+appointment, official email, campus office, awards, students) render read-only
+with no pencil — they are loaded from the university DB and cannot be edited
+here. The target is resolved from the route param server-side, the payload is
+strict-`zod` validated, and the write is transactional + `editor`/`dt` audited.
+
+³ Both **chair and staff** manage roles on the `/user-roles` page (backed by
+`/api/editor/user-role`), **but appointing or removing a chair is chair-only** —
+`chairAssignmentGuard` ([`lastChair.ts`](../src/lib/editor/lastChair.ts)) 403s
+any non-chair attempt to set a row's role to `chair` or to edit/remove a current
+chair row. This lets staff manage staff/faculty/viewer without being able to
+escalate themselves (or anyone) to chair.
+
+**Role management** — chair and staff assign roles on the `/user-roles` page
+(backed by `/api/editor/user-role`). **Chair handover** (chair only): assign the
+new chair first, then demote or remove the outgoing one — `lastChairValidator`
+([`lastChair.ts`](../src/lib/editor/lastChair.ts)) rejects with 409 any edit
+or remove that would leave zero chairs, so the portal can never lock itself
+out. Emergency escape hatches: the `DEV_ROLE` env override or a manual
+`UPDATE` on `ubs_emp.cfp_user_role`.
+
+Role resolution (`cfp_user_role`, mock `userRoleMockData.ts`): explicit row →
+roster member without a row defaults to **faculty** → otherwise **viewer**.
+The "own" tier matches rows against the session's `userid` *and* its resolved
+`person_number`; on `edit` it also rejects reassigning a row's owner. Denials
+are HTTP 403 with the standard fail envelope. A dev-only impersonation cookie
+(`/api/dev/impersonate` + the bottom-right widget) switches identity/role in
+non-production builds.
+
+---
+
+## 13. Cross-cutting invariants
 
 These apply to **every** write path above:
 
 - **Audit stamping** — each write sets `editor` (the userid) and `dt`; `ts` is
-  DB-managed. The user comes from `getCurrentUser()` in
-  [`auth.ts`](../src/lib/auth.ts) (returns `DEV_USERID` until SSO lands).
+  DB-managed. The user comes from `getSession()` in
+  [`auth.ts`](../src/lib/auth.ts) (dev cookie → `DEV_USERID` until SSO lands).
 - **Identity bridge** — course/semester plans and leaves key on
   `person_number`; committee assignments and teaching prefs key on `userid`.
   `dce.person_number` maps between them
@@ -305,6 +373,6 @@ These apply to **every** write path above:
   service falls back to bundled mock data (saves are acknowledged, not
   persisted); in **db** mode the same contract hits `cfp_*`. See the mode switch
   in `src/server/data/index.ts`.
-- **Write allowlist** — only the ten `WRITABLE_TABLES` `cfp_*` tables accept DML
+- **Write allowlist** — only the eleven `WRITABLE_TABLES` `cfp_*` tables accept DML
   (plus `people.cfp_faculty_teaching_prefs` via plain knex); see
   [`sql-reference.md`](sql-reference.md).

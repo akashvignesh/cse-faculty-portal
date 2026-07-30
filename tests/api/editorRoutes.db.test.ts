@@ -6,6 +6,10 @@
 
 import { afterAll, describe, expect, it } from "vitest";
 
+// RBAC: writes require an authorized session; run these tests as chair so the
+// pre-RBAC assertions are unchanged (role scenarios live in rbacEditorRoutes).
+process.env.DEV_ROLE ??= "chair";
+
 const runDbTests = process.env.RUN_DB_TESTS === "1";
 const describeDb = runDbTests ? describe : describe.skip;
 

@@ -22,6 +22,7 @@ export const WRITABLE_TABLES: ReadonlySet<string> = new Set([
   "cfp_faculty_leave",
   "cfp_area_tag_master",
   "cfp_course_area_tag",
+  "cfp_user_role",
 ]);
 
 function createKnex(): Knex {

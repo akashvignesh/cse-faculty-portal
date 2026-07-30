@@ -401,9 +401,16 @@ then add it to the assembled return object → mapper → detail component
   `db/migration/widen_teaching_pref_check.sql`);
   CHECK `term_code REGEXP '^[0-9]{3}[569]$'`.
 - Everything else (`ps_rpt.*`, `dce.*`, `committees.*`, `people.*` non-prefs,
-  `cfp_faculty`, `cfp_appointments`, `cfp_faculty_primary_*`,
-  `cfp_teaching_reductions`, `cfp_faculty_load_balance`) is **read-only** by
-  ground rule and by the app's allowlist.
+  `cfp_faculty`, `cfp_appointments`, `cfp_teaching_reductions`,
+  `cfp_faculty_load_balance`) is **read-only** by ground rule (upstream-owned;
+  name/appointment/etc. are loaded from the university DB).
+- **Profile-editable (department-owned)** via `PATCH /api/v1/faculty/[id]/profile`
+  (RBAC `profile:edit(-own)`, transactional, `editor`/`dt` audited):
+  `cfp_faculty_primary_email`, `cfp_faculty_primary_phone_number`,
+  `cfp_faculty_primary_address`, and `cfp_faculty_research_areas`
+  (⋈ `cfp_research_area_master`). ⚠️ **DEPLOYMENT:** the university→CS batch
+  load must NOT repopulate these tables, or profile edits will be overwritten
+  on the next sync.
 - Currently unpopulated on the dev DB: `cfp_faculty`, `cfp_appointments`,
   primary-contact tables, `dce.person_number`, `ub_display_name_v`,
   `phd_advisors`, `sunycard.cfp_cse_faculty_photos_v` — the roster stays

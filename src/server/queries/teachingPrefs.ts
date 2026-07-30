@@ -1,6 +1,6 @@
 import "server-only";
 import { getDb } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { BadRequestError, ConflictError, NotFoundError } from "@/lib/api/errors";
 import type {
   SaveTeachingPreferenceResult,
@@ -156,7 +156,7 @@ export async function saveTeachingPreferences(
   }
 
   const db = getDb();
-  const editor = getCurrentUser().userid;
+  const editor = (await getSession()).userid;
   const termCode = request.termCode?.trim() || null;
   // term_code is NOT NULL with a format CHECK on the live table.
   if (!termCode) {

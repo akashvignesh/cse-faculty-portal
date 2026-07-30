@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { withErrorHandler } from "@/lib/api/errors";
+import { requirePermission } from "@/lib/api/guard";
 import { ok } from "@/lib/api/response";
 import { isDbMode } from "@/lib/env";
 
@@ -26,6 +27,7 @@ const SEED_CATEGORIES: ServiceCategory[] = [
 
 /** GET /api/editor/service-categories */
 export const GET = withErrorHandler(async () => {
+  await requirePermission("committee:view");
   if (!isDbMode) {
     return ok("Service categories fetched successfully", SEED_CATEGORIES);
   }

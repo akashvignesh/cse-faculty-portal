@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePermission } from "@/components/auth/AuthProvider";
 import DetailSidebar from "@/components/faculty-detail/DetailSidebar";
 import { APP_TITLE } from "@/config/appConfig";
 import {
@@ -37,6 +38,7 @@ import SemesterLoadSection from "./SemesterLoadSection";
 import SemesterPlanningTable from "./SemesterPlanningTable";
 
 export default function CoursePreferenceView({ userid }: { userid: string }) {
+  const { canEditResource } = usePermission();
   const [faculty, setFaculty] = useState<Faculty | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -221,10 +223,23 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
     };
   }, [faculty, selectedYear, storedPlans]);
 
-  const isCurrentYearLocked = useMemo(
+  // RBAC (server-enforced too): chair/staff edit anyone's plan, faculty only
+  // their own, viewer none. Ownership matches on userid or person number.
+  const canEditPlan = useMemo(() => {
+    if (!faculty) return false;
+    return (
+      canEditResource("course-plan", faculty.userid || userid) !== "none" ||
+      canEditResource("course-plan", faculty.personNumber || null) !== "none"
+    );
+  }, [canEditResource, faculty, userid]);
+
+  const yearLocked = useMemo(
     () => allYears.find((yr) => yr.year === selectedYear)?.locked ?? false,
     [allYears, selectedYear]
   );
+
+  // Everything below treats "locked" as read-only, so RBAC folds into it.
+  const isCurrentYearLocked = yearLocked || !canEditPlan;
 
   const currentYearData = useMemo(
     () => yearDataMap[selectedYear] ?? createEmptyYearData(),
@@ -507,7 +522,9 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                       >
                         <path d="M11.5 7V5.5a3.5 3.5 0 0 0-7 0V7H3v7.5h10V7h-1.5ZM6 5.5a2 2 0 1 1 4 0V7H6V5.5Z" />
                       </svg>
-                      Viewing read-only data for {selectedYear}
+                      {yearLocked
+                        ? `Viewing read-only data for ${selectedYear}`
+                        : "You have read-only access to this course preference"}
                     </div>
                   )}
                 </div>

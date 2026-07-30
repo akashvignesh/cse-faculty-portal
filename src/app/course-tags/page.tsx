@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePermission } from "@/components/auth/AuthProvider";
 import { APP_TITLE } from "@/config/appConfig";
 import {
   loadAreaTagMaster,
@@ -18,6 +19,7 @@ interface ActiveCourse {
 }
 
 export default function CourseAreaTagsPage() {
+  const { can } = usePermission();
   const [courses, setCourses] = useState<ActiveCourse[]>([]);
   const [tags, setTags] = useState<AreaTag[]>([]);
   const [available, setAvailable] = useState(true);
@@ -87,10 +89,14 @@ export default function CourseAreaTagsPage() {
     setMessage({ text: "", type: "" });
   }
 
+  // RBAC (server-enforced too): only chair/staff can edit course tags —
+  // everyone else gets the read-only view of current assignments.
+  const editable = available && can("course-tags:edit");
+
   async function handleSave() {
     if (!selectedCourseId) return;
-    if (!available) {
-      setMessage({ text: "Editing requires the database backend.", type: "error" });
+    if (!editable) {
+      setMessage({ text: "You do not have permission to edit course tags.", type: "error" });
       return;
     }
     setSaving(true);
@@ -140,9 +146,11 @@ export default function CourseAreaTagsPage() {
           </div>
         ) : (
           <div className="course-tags-editor">
-            {!available && (
+            {!editable && (
               <div className="faculty-table-status" role="status">
-                Editing requires the database backend (mock mode has no persistence).
+                {available
+                  ? "You have read-only access to course area tags."
+                  : "Editing requires the database backend (mock mode has no persistence)."}
               </div>
             )}
 
@@ -162,7 +170,7 @@ export default function CourseAreaTagsPage() {
             </label>
 
             {selectedCourse && (
-              <fieldset className="course-tags-fieldset" disabled={!available}>
+              <fieldset className="course-tags-fieldset" disabled={!editable}>
                 <legend>Area tags for {selectedCourse.subject} {selectedCourse.courseName}</legend>
                 <div className="cp-role-options">
                   {tags.map((tag) => {
@@ -188,7 +196,7 @@ export default function CourseAreaTagsPage() {
                     type="button"
                     className="cp-save-btn"
                     onClick={handleSave}
-                    disabled={saving || !available}
+                    disabled={saving || !editable}
                   >
                     {saving ? "Saving…" : "Save Tags"}
                   </button>

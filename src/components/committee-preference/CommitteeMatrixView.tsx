@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePermission } from "@/components/auth/AuthProvider";
 import DetailSidebar from "@/components/faculty-detail/DetailSidebar";
 import { APP_TITLE } from "@/config/appConfig";
 import { EditorError } from "@/lib/editor/client";
@@ -60,6 +61,11 @@ const COUNT_ROW_DEFS = [
 
 export default function CommitteeMatrixView({ userid }: { userid: string }) {
   const academicYear = useMemo(() => currentAcademicYear(), []);
+  const { can, canEditResource, isLoading: isAuthLoading } = usePermission();
+  // Committee management is chair-only — without committee:view the page
+  // never loads data and renders an access notice instead (the four data
+  // endpoints reject reads server-side as well).
+  const canViewCommittee = can("committee:view");
 
   const [records, setRecords] = useState<Faculty[]>([]);
   const [columns, setColumns] = useState<MatrixColumn[]>([]);
@@ -77,6 +83,22 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
 
   const roleCols = useMemo(() => columns.filter((c) => c.type === "role"), [columns]);
   const committeeCols = useMemo(() => columns.filter((c) => c.type === "committee"), [columns]);
+
+  // RBAC (server-enforced too): chair/staff edit every row, faculty only the
+  // row whose userid is their own, viewer none. Assignment cells and summary
+  // cells are separate resources but share the same tiers.
+  function canEditRow(uid: string): boolean {
+    return canEditResource("committee-assignment", uid) !== "none";
+  }
+  function canEditSummary(uid: string): boolean {
+    return canEditResource("service-summary", uid) !== "none";
+  }
+  const anyRowEditable = useMemo(
+    () => records.some((member) => canEditRow(member.userid)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [records, canEditResource]
+  );
+  const ownRowsOnly = anyRowEditable && !records.every((member) => canEditRow(member.userid));
 
   function applyLoadedData(data: {
     source: "db" | "mock";
@@ -131,11 +153,15 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
       }
     }
 
-    load();
+    // Wait for the session, and never fetch without committee:view — the
+    // data endpoints would 403 anyway.
+    if (!isAuthLoading && canViewCommittee) {
+      load();
+    }
     return () => {
       isActive = false;
     };
-  }, [academicYear]);
+  }, [academicYear, isAuthLoading, canViewCommittee]);
 
   const faculty = useMemo(() => findFacultyByUserid(records, userid), [records, userid]);
 
@@ -246,7 +272,15 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
 
   return (
     <section className="faculty-detail-panel">
-      {isLoading ? (
+      {!isAuthLoading && !canViewCommittee ? (
+        <div className="faculty-detail-body">
+          <div className="faculty-table-status faculty-table-status-error" role="alert">
+            Committee management is handled by the department chair. Your role does not have
+            access to this page — committee memberships are shown on each faculty profile under
+            the Committee tab.
+          </div>
+        </div>
+      ) : isLoading ? (
         <div className="faculty-detail-body">
           <div className="faculty-table-status" role="status">
             Loading committee preferences…
@@ -291,6 +325,9 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                     <p>
                       Faculty committee membership assignments for {academicYear}
                       {dataSource === "mock" ? " (mock data)" : ""}.
+                      {ownRowsOnly
+                        ? " You can edit only your own row — other rows are shown read-only."
+                        : ""}
                     </p>
                   </div>
 
@@ -411,6 +448,8 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                             {/* ── Faculty rows ── */}
                             {records.map((member, rowIndex) => {
                               const isEven = rowIndex % 2 === 1;
+                              const rowEditable = canEditRow(member.userid);
+                              const summaryEditable = canEditSummary(member.userid);
                               return (
                                 <tr key={member.userid}>
                                   {/* Sticky name cell */}
@@ -423,6 +462,18 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                                   {/* Role columns — single X button (no checkbox) */}
                                   {roleCols.map((c) => {
                                     const marked = getValue(member.userid, c.id) === "X";
+                                    if (!rowEditable) {
+                                      return (
+                                        <td key={c.id} className="committee-matrix-td-cell">
+                                          <span
+                                            className="committee-matrix-td-computed"
+                                            title={`${member.name} — ${c.name}`}
+                                          >
+                                            {marked ? "X" : ""}
+                                          </span>
+                                        </td>
+                                      );
+                                    }
                                     return (
                                       <td key={c.id} className="committee-matrix-td-cell">
                                         <button
@@ -448,6 +499,18 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                                   {/* Committee columns — R/C/V/M dropdown */}
                                   {committeeCols.map((c) => {
                                     const val = getValue(member.userid, c.id);
+                                    if (!rowEditable) {
+                                      return (
+                                        <td key={c.id} className="committee-matrix-td-cell">
+                                          <span
+                                            className="committee-matrix-td-computed"
+                                            title={`${member.name} — ${c.name}`}
+                                          >
+                                            {val || ""}
+                                          </span>
+                                        </td>
+                                      );
+                                    }
                                     return (
                                       <td key={c.id} className="committee-matrix-td-cell">
                                         <select
@@ -484,6 +547,16 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                                         </td>
                                       );
                                     }
+                                    if (!summaryEditable) {
+                                      return (
+                                        <td
+                                          key={col.key}
+                                          className={`committee-matrix-td-summary${col.type === "text" ? " committee-matrix-td-comments" : ""}`}
+                                        >
+                                          {getExtra(member.userid, col.key)}
+                                        </td>
+                                      );
+                                    }
                                     return (
                                       <td
                                         key={col.key}
@@ -515,14 +588,20 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
 
                       {/* ── Actions ── */}
                       <div className="faculty-preference-actions">
-                        <button
-                          type="button"
-                          className="faculty-course-preference-submit"
-                          onClick={handleSubmit}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? "Saving…" : "Save Changes"}
-                        </button>
+                        {anyRowEditable ? (
+                          <button
+                            type="button"
+                            className="faculty-course-preference-submit"
+                            onClick={handleSubmit}
+                            disabled={isSaving}
+                          >
+                            {isSaving ? "Saving…" : "Save Changes"}
+                          </button>
+                        ) : (
+                          <div className="faculty-table-status" role="status">
+                            You have read-only access to committee assignments.
+                          </div>
+                        )}
                         {submitMessage ? (
                           <div className="faculty-course-preference-feedback" role="status">
                             {submitMessage}

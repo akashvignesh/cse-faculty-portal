@@ -14,6 +14,17 @@ const envSchema = z
     DB_DATABASE: z.string().default("ubs_emp"),
     /** Stamped into cfp_* editor/audit columns until real auth lands. */
     DEV_USERID: z.string().min(1).max(8).default("system"),
+    /** Forces the dev identity's role, bypassing the cfp_user_role lookup. */
+    DEV_ROLE: z.enum(["chair", "staff", "faculty", "viewer"]).optional(),
+    /** Set to "1" to enable the dev role switcher in a production build. */
+    AUTH_DEV_SWITCHER: z.enum(["0", "1"]).optional(),
+    /**
+     * Optional shared secret that gates the dev switcher on a deployed test
+     * server. When set, /api/dev/impersonate requires this value — so a test
+     * deploy isn't wide open to anyone who finds it. Leave unset for a private
+     * (VPN/basic-auth) box where the switcher can be open.
+     */
+    AUTH_DEV_SWITCHER_SECRET: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.FACULTY_DATA_MODE === "db") {
@@ -50,3 +61,10 @@ function loadEnv(): Env {
 export const env = loadEnv();
 
 export const isDbMode = env.FACULTY_DATA_MODE === "db";
+
+/**
+ * The dev role switcher (cookie-based impersonation) is on in every non-prod
+ * build, and only in production when explicitly opted in via AUTH_DEV_SWITCHER=1.
+ */
+export const isDevSwitcherEnabled =
+  process.env.NODE_ENV !== "production" || env.AUTH_DEV_SWITCHER === "1";

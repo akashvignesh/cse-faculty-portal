@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import Editor, { Field, Validate } from "datatables.net-editor-server";
 import { withErrorHandler } from "@/lib/api/errors";
+import { requirePermission } from "@/lib/api/guard";
 import { parseEditorBody } from "@/lib/editor/body";
 import { academicYearValidator, auditFields, createEditor } from "@/lib/editor/factory";
 
@@ -12,8 +13,12 @@ import { academicYearValidator, auditFields, createEditor } from "@/lib/editor/f
 // from cfp_committee_assignment and never stored.
 const TABLE = "cfp_committee_service_summary";
 
-function buildEditor(): Editor {
-  return createEditor(TABLE, "service_summary_id").fields(
+async function buildEditor(): Promise<Editor> {
+  const { editor, session } = await createEditor(TABLE, "service_summary_id", {
+    resource: "service-summary",
+    ownership: "userid",
+  });
+  return editor.fields(
     // Pkey as read-only field so GET rows are self-describing.
     new Field(`${TABLE}.service_summary_id`).set(false),
     new Field(`${TABLE}.userid`).validator(Validate.notEmpty()).validator(Validate.maxLen(8)),
@@ -23,13 +28,14 @@ function buildEditor(): Editor {
     new Field(`${TABLE}.others_count`).validator(Validate.numeric()),
     new Field(`${TABLE}.service_points_override`).validator(Validate.numeric()),
     new Field(`${TABLE}.comments`).validator(Validate.maxLen(1024)),
-    ...auditFields(TABLE)
+    ...auditFields(TABLE, session)
   );
 }
 
 /** GET /api/editor/service-summary?academic_year=2025-2026&userid= */
 export const GET = withErrorHandler(async (request: Request) => {
-  const editor = buildEditor();
+  await requirePermission("committee:view");
+  const editor = await buildEditor();
   const url = new URL(request.url);
   const academicYear = url.searchParams.get("academic_year");
   if (academicYear) {
@@ -46,7 +52,7 @@ export const GET = withErrorHandler(async (request: Request) => {
 /** POST /api/editor/service-summary — Editor protocol create/edit/remove */
 export const POST = withErrorHandler(async (request: Request) => {
   const body = await parseEditorBody(request);
-  const editor = buildEditor();
+  const editor = await buildEditor();
   await editor.process(body);
   return NextResponse.json(editor.data());
 });

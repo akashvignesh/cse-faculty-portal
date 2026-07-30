@@ -64,7 +64,8 @@ DB_PORT=3307
 DB_USER=...        # never commit credentials
 DB_PASSWORD=...
 DB_DATABASE=ubs_emp
-DEV_USERID=...     # stamped into cfp_* audit columns until real auth lands
+DEV_USERID=...     # acts as the signed-in user until real auth lands
+DEV_ROLE=...       # optional: force the RBAC role (chair|staff|faculty|viewer)
 ```
 
 If the tunnel is down, API routes answer `503` with a clear message instead
@@ -126,8 +127,22 @@ Key invariants:
   maps between them (`src/server/queries/identity.ts`). API routes accept
   either identifier.
 - **Audit stamping** — every write sets `editor` (userid) and `dt`; `ts` is
-  DB-managed. The current user comes from the `getCurrentUser()` seam in
-  `src/lib/auth.ts` (returns `DEV_USERID` until SSO lands).
+  DB-managed. The current user comes from the `getSession()` seam in
+  `src/lib/auth.ts` (dev cookie → `DEV_USERID` until SSO lands).
+- **RBAC** — four roles (`chair`, `staff`, `faculty`, `viewer`) with a single
+  boolean `ACCESS` grid in `src/lib/permissions.ts` shared by the server guard
+  (`src/lib/editor/rbac.ts`, attached to every Editor route) and the client
+  context (`src/components/auth/AuthProvider.tsx`). Committee management is
+  chair-only (writes *and* reads — see `docs/business-logic.md` §12); staff
+  edits everything else department-wide; faculty edits only their own rows;
+  viewer is read-only. Roles live in `ubs_emp.cfp_user_role`
+  (mock: `src/data/userRoleMockData.ts`); a roster member without a row
+  defaults to `faculty`, everyone else to `viewer`. Enforcement is
+  server-side (403); UI hiding is UX only. The chair manages assignments on
+  `/user-roles`; a lockout guard rejects any change that would leave zero
+  chairs (assign the new chair first, then step down). A dev-only role
+  switcher (bottom-right widget, `/api/dev/impersonate`) is available
+  outside production for testing each role.
 - **Term codes** — `[century][YY][term]` with century digit `+18`
   (Fall 2025 = `2259`); helpers and tests in `src/lib/term.ts`.
 
@@ -170,9 +185,11 @@ $env:RUN_DB_TESTS="1"; $env:FACULTY_DATA_MODE="db"; npx vitest run tests/api
 
 ## Security caveats
 
-- **No authentication yet.** Every request acts as `DEV_USERID`; mutating
-  endpoints are unprotected. Do not expose beyond the department network
-  until SSO/Shibboleth is integrated at the `getCurrentUser()` seam.
+- **No real authentication yet.** Every request acts as `DEV_USERID` (or the
+  dev-switcher cookie). Authorization *is* enforced — mutating endpoints
+  check the RBAC matrix and row ownership server-side — but identity is not
+  verified, so do not expose beyond the department network until
+  SSO/Shibboleth is integrated at the `getSession()` seam in `src/lib/auth.ts`.
 - Request a dedicated MySQL account (SELECT on university schemas, DML only
   on `ubs_emp.cfp_*`) instead of a personal account — defense in depth on
   top of the app-level allowlist.

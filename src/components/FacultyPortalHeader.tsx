@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { usePermission, useSession } from "@/components/auth/AuthProvider";
 
 export default function FacultyPortalHeader() {
+  const { can } = usePermission();
+  const { session, isLoading } = useSession();
   return (
     <header className="portal-header" aria-label="CSE Faculty Portal branding">
       <div className="portal-brand-lockup">
@@ -26,9 +31,31 @@ export default function FacultyPortalHeader() {
           </svg>
           <span>CSE Faculty Portal</span>
         </Link>
-        <Link className="portal-topbar-link" href="/course-tags">
-          <span>Course Area Tags</span>
-        </Link>
+        {/* The course-tags page is purely an editing tool — hide it from
+            roles that cannot edit tags (the page itself is also read-only-
+            gated, and the API enforces server-side). */}
+        {can("course-tags:edit") ? (
+          <Link className="portal-topbar-link" href="/course-tags">
+            <span>Course Area Tags</span>
+          </Link>
+        ) : null}
+        {can("user-role:edit") ? (
+          <Link className="portal-topbar-link" href="/user-roles">
+            <span>User Roles</span>
+          </Link>
+        ) : null}
+
+        {/* Who am I — the signed-in user + role. In production the userid comes
+            from the SSO session; today it is DEV_USERID / the dev switcher. */}
+        {!isLoading && session && (
+          <span
+            className="portal-topbar-user"
+            style={{ marginLeft: "auto", opacity: 0.9, whiteSpace: "nowrap" }}
+            title={`Signed in as ${session.userid} (${session.role})`}
+          >
+            Signed in as <strong>{session.userid}</strong> ({session.role})
+          </span>
+        )}
       </div>
     </header>
   );
