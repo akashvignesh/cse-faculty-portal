@@ -34,7 +34,7 @@ const NAV_ITEMS: {
   },
   {
     page: "committee-preference",
-    label: "Edit Committee Preference",
+    label: "Roles and Committees",
     href: (userid) => `/faculty/${userid}/committee-preference`,
     icon: "M2 2h5v5H2zm7 0h5v5H9zM2 9h5v5H2zm7 0h5v5H9z",
     editResource: "committee-assignment",

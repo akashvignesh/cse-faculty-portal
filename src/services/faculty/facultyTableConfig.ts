@@ -13,6 +13,8 @@ const EXPORT_OPTIONS = {
 const BUTTON_ICONS = {
   copy: '<span class="faculty-export-icon faculty-export-icon-copy" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 3h8v10H3V3Zm1.5 1.5v7h5v-7h-5ZM6 0h7v10h-1.5V1.5H6V0Z"/></svg></span>',
   csv: '<span class="faculty-export-icon faculty-export-icon-file" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 1h6l4 4v10H3V1Zm5.5 1.5v4h3.75L8.5 2.5ZM5 9h6v1.2H5V9Zm0 2.2h6v1.2H5v-1.2Z"/></svg></span>',
+  excel:
+    '<span class="faculty-export-icon faculty-export-icon-file" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 1h6l4 4v10H3V1Zm5.5 1.5v4h3.75L8.5 2.5ZM4.25 8.1 6.4 11l-2.2 2.9h1.6L7.2 11.9 8.8 13.9h1.6L8.2 11l2.1-2.9H8.8L7.2 10.1 5.6 8.1H4.25Z"/></svg></span>',
   print:
     '<span class="faculty-export-icon faculty-export-icon-print" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 1h8v4H4V1Zm1.5 1.5v1h5v-1h-5ZM2 6h12a1 1 0 0 1 1 1v5h-3v3H4v-3H1V7a1 1 0 0 1 1-1Zm3.5 5.5v2h5v-2h-5ZM12.5 8a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg></span>',
   columns:
@@ -134,6 +136,7 @@ export interface FacultyDetailTableConfigOptions {
   title?: string;
   order?: [number, "asc" | "desc"][];
   showButtons?: boolean;
+  showExcel?: boolean;
   showColumnVisibility?: boolean;
 }
 
@@ -142,6 +145,7 @@ export function createFacultyDetailTableConfig({
   title = "Faculty Detail",
   order = [[0, "asc"]],
   showButtons = true,
+  showExcel = false,
   showColumnVisibility = true,
 }: FacultyDetailTableConfigOptions = {}): Record<string, any> {
   const topEndFeatures: any[] = ["search"];
@@ -164,15 +168,28 @@ export function createFacultyDetailTableConfig({
         title,
         exportOptions: EXPORT_OPTIONS,
       },
-      {
-        text: BUTTON_ICONS.print,
-        titleAttr: "Print or save as PDF",
-        className: "faculty-export-button faculty-export-button-print",
-        action: function (_event: any, dataTableApi: any) {
-          printDataTable(dataTableApi);
-        },
-      },
     ];
+
+    if (showExcel) {
+      buttons.push({
+        extend: "excelHtml5",
+        text: BUTTON_ICONS.excel,
+        titleAttr: "Download Excel",
+        className: "faculty-export-button faculty-export-button-excel",
+        filename,
+        title,
+        exportOptions: EXPORT_OPTIONS,
+      });
+    }
+
+    buttons.push({
+      text: BUTTON_ICONS.print,
+      titleAttr: "Print or save as PDF",
+      className: "faculty-export-button faculty-export-button-print",
+      action: function (_event: any, dataTableApi: any) {
+        printDataTable(dataTableApi);
+      },
+    });
 
     if (showColumnVisibility) {
       buttons.push({
