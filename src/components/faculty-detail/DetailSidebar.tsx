@@ -27,7 +27,7 @@ const NAV_ITEMS: {
   },
   {
     page: "course-preference",
-    label: "Edit Course Preference",
+    label: "Course Preferences",
     href: (userid) => `/faculty/${userid}/course-preference`,
     icon: "M3 4.25h10v1.5H3Zm0 3h10v1.5H3Zm0 3h10v1.5H3Z",
     editResource: "course-plan",

@@ -30,7 +30,7 @@ export const ALL_FACULTY_TYPES = Object.keys(DEFAULT_ANNUAL_LOAD) as FacultyType
 //   Associate Chair                0   (no automatic release in the spec)
 export const ROLE_ADJUSTMENTS_CONFIG: { role: string; adjustment: number }[] = [
   { role: "Chair", adjustment: 2.5 },
-  { role: "Associate Chair", adjustment: 0 },
+  { role: "Associate Chair", adjustment: 1 },
   { role: "Director of Graduate Studies", adjustment: 1 },
   { role: "Director of Undergraduate Studies", adjustment: 1 },
   { role: "Director of Admissions", adjustment: 1 },
