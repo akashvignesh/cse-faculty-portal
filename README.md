@@ -99,15 +99,17 @@ src/
 
 Key invariants:
 
-- **Write allowlist** — only ten `ubs_emp.cfp_*` tables are writable (the
-  `WRITABLE_TABLES` set in `src/lib/db.ts`, also enforced in
-  `src/lib/editor/factory.ts`): the nine app-created tables (course/semester
-  plan, faculty role, the three committee tables, service categories/summary,
-  the two area-tag tables) plus the pre-existing `cfp_faculty_leave`, which the
-  leave editor now writes. All other university tables (`committees.*`,
-  `people.*`, `ps_rpt.*`, `dce.*`, the pre-existing `cfp_faculty`) are read-only
-  by ground rule. Exception: `people.cfp_faculty_teaching_prefs` accepts DML via
-  plain knex.
+- **Write allowlist** — only eight `ubs_emp.cfp_*` tables are writable through
+  the Editor protocol (the `WRITABLE_TABLES` set in `src/lib/db.ts`, enforced
+  in `src/lib/editor/factory.ts`): course/semester plan, faculty role, service
+  categories/summary, the two area-tag tables, plus the pre-existing
+  `cfp_faculty_leave`, which the leave editor writes. Two cross-schema tables
+  accept DML via plain knex: `people.cfp_faculty_teaching_prefs` (teaching
+  preferences) and `committees.members` (the committee matrix's storage —
+  the old parallel `cfp_committee_catalog`/`cfp_committee_assignment` tables
+  are retired). All other university tables (`committees.committees`,
+  `people.*`, `ps_rpt.*`, `dce.*`, the pre-existing `cfp_faculty`) are
+  read-only by ground rule.
 - **Identity bridge** — course plans key on `person_number`; committee
   assignments and teaching preferences key on `userid`. `dce.person_number`
   maps between them (`src/server/queries/identity.ts`). API routes accept
@@ -139,9 +141,10 @@ mysql $T < db/seed/test_faculty_unseed.sql
 mysql $T < db/migration/widen_teaching_pref_check.sql
 # 4. Seed five test faculty across every table the portal reads/edits.
 mysql $T < db/seed/test_faculty_seed.sql
-# 5. (Optional, re-runnable) derive committee assignments from the live roster
-#    and the per-year roles. Non-destructive; set @ay inside the file.
-mysql $T < db/migration/autofill_committee_assignments.sql
+# 5. (Re-runnable) seed the five leadership "Roles" matrix columns into
+#    committees.committees (cms_display=0) so their marks can be stored in
+#    committees.members with every other matrix cell.
+mysql $T < db/migration/seed_leadership_committees.sql
 ```
 
 > Collation note for any new cross-schema script: oceanus' server default is

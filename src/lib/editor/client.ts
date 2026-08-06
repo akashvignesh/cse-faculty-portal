@@ -1,7 +1,7 @@
 // Browser-side helper that speaks the DataTables Editor wire protocol to our
 // /api/editor/* routes — no licensed Editor client involved. Field names must
 // be fully qualified (table.column) and submitted data nests accordingly:
-//   rows = { "row_7": { cfp_committee_assignment: { role_code: "C" } } }
+//   rows = { "row_7": { members: { role: "Chair" } } }
 // Use row id 0 (or any placeholder) for creates.
 
 export type EditorAction = "create" | "edit" | "remove";

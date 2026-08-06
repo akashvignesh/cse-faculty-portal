@@ -1,25 +1,31 @@
 // Client-side data layer for the committee preference matrix.
 //
-// In db mode the matrix loads its columns from cfp_committee_catalog and its
-// cells from cfp_committee_assignment via the Editor-protocol routes, and
-// saves by diffing the in-memory state into batched create/edit/remove
-// submits. In local mock mode (editor routes answer 503) it falls back to the
-// bundled mock data and saves are acknowledged without persistence.
+// In db mode the matrix loads its columns from committees.committees (with
+// kind/category metadata from the ubs_emp.cfp_committee_catalog overlay) and
+// its cells from committees.members via the /api/editor routes, and saves by
+// diffing the in-memory state into batched create/edit/remove submits. The
+// manual Comments column persists in cfp_committee_service_summary; the other
+// summary columns (# of Chairs / Committees / Others, Service Points) are
+// computed live with the workbook formulas (see committeeSummary.ts).
+// In local mock mode (editor routes answer 503) it falls back to the bundled
+// mock data and saves are acknowledged without persistence.
 
 import { committeeList, committeeMembershipData } from "@/data/committeeMockData";
+import { dbRoleToUiCode, uiCodeToDbRole, type MatrixCellCode } from "@/lib/committeeRoles";
 import { editorLoad, editorSubmit, EditorError } from "@/lib/editor/client";
+import type { CommitteeKind } from "@/services/committee/committeeSummary";
+
+export type { MatrixCellCode };
 
 export interface MatrixColumn {
-  /** cfp_committee_catalog.catalog_id (db) or mock committee id (local). */
+  /** committees.committees.id (db) or mock committee id (local). */
   id: number;
   name: string;
   type: "role" | "committee";
+  kind: CommitteeKind;
   category: number | null;
   servicePoints: number | null;
 }
-
-/** UI cell codes: "X" on role columns, "R"/"C"/"V"/"M" on committee columns. */
-export type MatrixCellCode = "" | "X" | "R" | "C" | "V" | "M";
 
 export interface LoadedAssignment {
   assignmentId: string;
@@ -31,8 +37,6 @@ export interface LoadedAssignment {
 export interface LoadedSummary {
   summaryId: string;
   userid: string;
-  others: string;
-  servicePoints: string;
   comments: string;
 }
 
@@ -48,60 +52,54 @@ const CATALOG_URL = "/api/editor/committee-catalog";
 const SUMMARY_URL = "/api/editor/service-summary";
 const CATEGORIES_URL = "/api/editor/service-categories";
 
-const ASSIGN_TABLE = "cfp_committee_assignment";
+const ASSIGN_TABLE = "members";
 const SUMMARY_TABLE = "cfp_committee_service_summary";
 
-// DB role_code ENUM('P','C','V','X','A') ↔ UI codes.
-function dbToUiCode(roleCode: string, columnType: "role" | "committee"): MatrixCellCode {
-  if (columnType === "role") {
-    return roleCode === "P" ? "X" : "";
-  }
-  switch (roleCode) {
-    case "P":
-      return "R";
-    case "C":
-      return "C";
-    case "V":
-      return "V";
-    default:
-      // Members and alternates both display as Member.
-      return "M";
-  }
+interface ColumnMeta {
+  kind: CommitteeKind;
+  category: number | null;
+  servicePoints: number | null;
+  order: number;
 }
 
-function uiToDbCode(uiCode: MatrixCellCode): string {
-  switch (uiCode) {
-    case "X":
-    case "R":
-      return "P";
-    case "C":
-      return "C";
-    case "V":
-      return "V";
-    default:
-      return "X"; // Member
-  }
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
 }
 
-interface CatalogRow {
+/** Name-keyed fallback metadata for committees without an overlay row. */
+const COLUMN_META: ReadonlyMap<string, ColumnMeta> = new Map(
+  committeeList.map((committee, index) => [
+    normalizeName(committee.name),
+    {
+      kind: committee.kind as CommitteeKind,
+      category: committee.category ?? null,
+      servicePoints: committee.servicePoints ?? null,
+      order: index,
+    },
+  ])
+);
+
+interface CommitteeRow {
   DT_RowId?: string;
-  cfp_committee_catalog?: {
-    catalog_id?: number | string;
+  committees?: {
+    id: number | string;
     name: string;
+    cms_display?: number | string | null;
+  };
+  cfp_committee_catalog?: {
     kind: string | null;
     service_category: number | string | null;
     display_order: number | string | null;
   };
 }
 
-interface AssignmentRow {
+interface MemberRow {
   DT_RowId?: string;
-  cfp_committee_assignment?: {
-    assignment_id: number | string;
-    catalog_id: number | string;
+  members?: {
+    id: number | string;
+    committee_id: number | string;
     userid: string;
-    role_code: string;
-    academic_year: string;
+    role: string | null;
   };
 }
 
@@ -110,8 +108,6 @@ interface SummaryRow {
   cfp_committee_service_summary?: {
     service_summary_id: number | string;
     userid: string;
-    others_count: number | string | null;
-    service_points_override: number | string | null;
     comments: string | null;
   };
 }
@@ -122,7 +118,8 @@ function mockMatrixData(): MatrixData {
     columns: committeeList.map((committee) => ({
       id: committee.id,
       name: committee.name,
-      type: committee.type === "role" ? "role" : "committee",
+      type: committee.kind === "leadership" ? "role" : "committee",
+      kind: committee.kind as CommitteeKind,
       category: committee.category ?? null,
       servicePoints: committee.servicePoints ?? null,
     })),
@@ -136,22 +133,30 @@ function mockMatrixData(): MatrixData {
   };
 }
 
-async function fetchCategoryPoints(): Promise<Map<number, number>> {
+export interface ServiceCategory {
+  category: number;
+  label: string;
+  points: number;
+}
+
+export async function fetchServiceCategories(): Promise<ServiceCategory[]> {
   try {
     const response = await fetch(CATEGORIES_URL, { headers: { Accept: "application/json" } });
-    const payload = (await response.json()) as {
-      data?: { category: number; points: number }[];
-    };
-    return new Map((payload.data ?? []).map((row) => [row.category, Number(row.points)]));
+    const payload = (await response.json()) as { data?: ServiceCategory[] };
+    return (payload.data ?? []).map((row) => ({
+      category: Number(row.category),
+      label: row.label,
+      points: Number(row.points),
+    }));
   } catch {
-    return new Map();
+    return [];
   }
 }
 
 export async function loadMatrixData(academicYear: string): Promise<MatrixData> {
-  let catalogRows: CatalogRow[];
+  let committeeRows: CommitteeRow[];
   try {
-    catalogRows = await editorLoad<CatalogRow>(CATALOG_URL);
+    committeeRows = await editorLoad<CommitteeRow>(CATALOG_URL);
   } catch (error) {
     if (error instanceof EditorError) {
       // Local mock mode (or editor backend unavailable): serve bundled data.
@@ -160,62 +165,75 @@ export async function loadMatrixData(academicYear: string): Promise<MatrixData> 
     throw error;
   }
 
-  const categoryPoints = await fetchCategoryPoints();
+  const categoryPoints = new Map(
+    (await fetchServiceCategories()).map((row) => [row.category, row.points])
+  );
 
-  const columns: MatrixColumn[] = catalogRows
-    .filter((row): row is CatalogRow & { cfp_committee_catalog: object } =>
-      Boolean(row.cfp_committee_catalog)
-    )
+  const columns: MatrixColumn[] = committeeRows
+    .filter((row): row is CommitteeRow & { committees: object } => Boolean(row.committees))
     .map((row) => {
-      const catalog = row.cfp_committee_catalog as NonNullable<CatalogRow["cfp_committee_catalog"]>;
+      const committee = row.committees as NonNullable<CommitteeRow["committees"]>;
+      const overlay = row.cfp_committee_catalog;
+      const meta = COLUMN_META.get(normalizeName(committee.name));
+
+      const kind = ((overlay?.kind || meta?.kind) ?? "committee") as CommitteeKind;
       const category =
-        catalog.service_category === null || catalog.service_category === ""
-          ? null
-          : Number(catalog.service_category);
+        overlay?.service_category === null ||
+        overlay?.service_category === undefined ||
+        overlay?.service_category === ""
+          ? (meta?.category ?? null)
+          : Number(overlay.service_category);
+      const sortOrder =
+        overlay?.display_order === null ||
+        overlay?.display_order === undefined ||
+        overlay?.display_order === ""
+          ? (meta?.order ?? Number.MAX_SAFE_INTEGER)
+          : Number(overlay.display_order);
+
       return {
-        // Prefer the declared pkey field; fall back to DT_RowId ("row_<id>").
-        id: Number(catalog.catalog_id ?? row.DT_RowId?.replace(/^row_/, "")),
-        name: catalog.name,
-        type: (catalog.kind === "leadership" ? "role" : "committee") as "role" | "committee",
+        id: Number(committee.id ?? row.DT_RowId?.replace(/^row_/, "")),
+        name: committee.name,
+        type: (kind === "leadership" ? "role" : "committee") as "role" | "committee",
+        kind,
         category,
-        servicePoints: category !== null ? (categoryPoints.get(category) ?? null) : null,
-        displayOrder:
-          catalog.display_order === null || catalog.display_order === ""
-            ? Number.MAX_SAFE_INTEGER
-            : Number(catalog.display_order),
+        servicePoints:
+          category !== null
+            ? (categoryPoints.get(category) ?? meta?.servicePoints ?? null)
+            : (meta?.servicePoints ?? null),
+        sortOrder,
       };
     })
     .sort(
       (a, b) =>
-        (a as { displayOrder: number }).displayOrder - (b as { displayOrder: number }).displayOrder
+        (a as { sortOrder: number }).sortOrder - (b as { sortOrder: number }).sortOrder ||
+        a.name.localeCompare(b.name)
     )
-    .map(({ id, name, type, category, servicePoints }) => ({
+    .map(({ id, name, type, kind, category, servicePoints }) => ({
       id,
       name,
       type,
+      kind,
       category,
       servicePoints,
     }));
 
   const columnTypeById = new Map(columns.map((column) => [column.id, column.type]));
 
-  const [assignmentRows, summaryRows] = await Promise.all([
-    editorLoad<AssignmentRow>(
-      `${ASSIGNMENTS_URL}?academic_year=${encodeURIComponent(academicYear)}`
-    ),
+  const [memberRows, summaryRows] = await Promise.all([
+    editorLoad<MemberRow>(ASSIGNMENTS_URL),
     editorLoad<SummaryRow>(`${SUMMARY_URL}?academic_year=${encodeURIComponent(academicYear)}`),
   ]);
 
-  const assignments: LoadedAssignment[] = assignmentRows
+  const assignments: LoadedAssignment[] = memberRows
     .map((row) => {
-      const assignment = row.cfp_committee_assignment;
-      if (!assignment) return null;
-      const catalogId = Number(assignment.catalog_id);
+      const member = row.members;
+      if (!member) return null;
+      const catalogId = Number(member.committee_id);
       return {
-        assignmentId: row.DT_RowId ?? `row_${assignment.assignment_id}`,
-        userid: assignment.userid,
+        assignmentId: row.DT_RowId ?? `row_${member.id}`,
+        userid: member.userid,
         catalogId,
-        uiCode: dbToUiCode(assignment.role_code, columnTypeById.get(catalogId) ?? "committee"),
+        uiCode: dbRoleToUiCode(member.role, columnTypeById.get(catalogId) ?? "committee"),
       };
     })
     .filter((assignment): assignment is LoadedAssignment => assignment !== null);
@@ -227,9 +245,6 @@ export async function loadMatrixData(academicYear: string): Promise<MatrixData> 
       return {
         summaryId: row.DT_RowId ?? `row_${summary.service_summary_id}`,
         userid: summary.userid,
-        others: summary.others_count === null ? "" : String(summary.others_count),
-        servicePoints:
-          summary.service_points_override === null ? "" : String(summary.service_points_override),
         comments: summary.comments ?? "",
       };
     })
@@ -238,14 +253,47 @@ export async function loadMatrixData(academicYear: string): Promise<MatrixData> 
   return { source: "db", columns, assignments, summaries };
 }
 
+// ── Column management (the Edit-columns panel) ──────────────────────────────
+
+export interface ColumnDraft {
+  name: string;
+  kind: CommitteeKind;
+  category: number | null;
+}
+
+export async function createMatrixColumn(draft: ColumnDraft): Promise<void> {
+  await editorSubmit(CATALOG_URL, "create", {
+    "0": {
+      committees: { name: draft.name },
+      cfp_committee_catalog: { kind: draft.kind, service_category: draft.category },
+    },
+  });
+}
+
+export async function updateMatrixColumn(id: number, draft: ColumnDraft): Promise<void> {
+  await editorSubmit(CATALOG_URL, "edit", {
+    [`row_${id}`]: {
+      committees: { name: draft.name },
+      cfp_committee_catalog: { kind: draft.kind, service_category: draft.category },
+    },
+  });
+}
+
+/** Removes the column, its metadata, and every assignment stored in it. */
+export async function deleteMatrixColumn(id: number): Promise<void> {
+  await editorSubmit(CATALOG_URL, "remove", { [`row_${id}`]: {} });
+}
+
+// ── Cell + comments save (diff against the loaded baseline) ─────────────────
+
 export interface SaveMatrixInput {
   academicYear: string;
-  /** Current cell state keyed `${userid}-${catalogId}` → UI code. */
+  /** Current cell state keyed `${userid}-${committeeId}` → UI code. */
   memberships: Record<string, string>;
   /** Assignments as loaded (the diff baseline). */
   loadedAssignments: LoadedAssignment[];
-  /** Current summary extras keyed by userid. */
-  extras: Record<string, Record<string, string>>;
+  /** Current comments keyed by userid. */
+  comments: Record<string, string>;
   loadedSummaries: LoadedSummary[];
 }
 
@@ -257,7 +305,7 @@ export interface SaveMatrixResult {
 }
 
 export async function saveMatrix(input: SaveMatrixInput): Promise<SaveMatrixResult> {
-  const { academicYear, memberships, loadedAssignments, extras, loadedSummaries } = input;
+  const { academicYear, memberships, loadedAssignments, comments, loadedSummaries } = input;
 
   const baseline = new Map(
     loadedAssignments.map((assignment) => [
@@ -276,21 +324,20 @@ export async function saveMatrix(input: SaveMatrixInput): Promise<SaveMatrixResu
     seenKeys.add(key);
     const separatorIndex = key.lastIndexOf("-");
     const userid = key.slice(0, separatorIndex);
-    const catalogId = Number(key.slice(separatorIndex + 1));
+    const committeeId = Number(key.slice(separatorIndex + 1));
     const existing = baseline.get(key);
 
     if (uiCode && !existing) {
       creates[String(createIndex++)] = {
         [ASSIGN_TABLE]: {
-          catalog_id: catalogId,
+          committee_id: committeeId,
           userid,
-          role_code: uiToDbCode(uiCode as MatrixCellCode),
-          academic_year: academicYear,
+          role: uiCodeToDbRole(uiCode as MatrixCellCode),
         },
       };
     } else if (uiCode && existing && existing.uiCode !== uiCode) {
       edits[existing.assignmentId] = {
-        [ASSIGN_TABLE]: { role_code: uiToDbCode(uiCode as MatrixCellCode) },
+        [ASSIGN_TABLE]: { role: uiCodeToDbRole(uiCode as MatrixCellCode) },
       };
     } else if (!uiCode && existing) {
       removes[existing.assignmentId] = {};
@@ -312,38 +359,22 @@ export async function saveMatrix(input: SaveMatrixInput): Promise<SaveMatrixResu
     await editorSubmit(ASSIGNMENTS_URL, "remove", removes);
   }
 
-  // Summaries: upsert one row per userid that has any manual value.
+  // Comments: upsert one summary row per userid with a manual comment.
   const summaryBaseline = new Map(loadedSummaries.map((summary) => [summary.userid, summary]));
   const summaryCreates: Record<string, Record<string, unknown>> = {};
   const summaryEdits: Record<string, Record<string, unknown>> = {};
   let summaryIndex = 0;
 
-  for (const [userid, values] of Object.entries(extras)) {
-    const others = values.others ?? "";
-    const servicePoints = values.servicePoints ?? "";
-    const comments = values.comments ?? "";
+  for (const [userid, comment] of Object.entries(comments)) {
     const existing = summaryBaseline.get(userid);
-    const isEmpty = !others && !servicePoints && !comments;
-
     const payload = {
-      [SUMMARY_TABLE]: {
-        userid,
-        academic_year: academicYear,
-        others_count: others === "" ? null : Number(others),
-        service_points_override: servicePoints === "" ? null : Number(servicePoints),
-        comments,
-      },
+      [SUMMARY_TABLE]: { userid, academic_year: academicYear, comments: comment },
     };
-
     if (existing) {
-      const changed =
-        existing.others !== others ||
-        existing.servicePoints !== servicePoints ||
-        existing.comments !== comments;
-      if (changed) {
+      if (existing.comments !== comment) {
         summaryEdits[existing.summaryId] = payload;
       }
-    } else if (!isEmpty) {
+    } else if (comment) {
       summaryCreates[String(summaryIndex++)] = payload;
     }
   }

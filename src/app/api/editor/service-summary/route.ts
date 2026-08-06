@@ -9,7 +9,7 @@ import { academicYearValidator, auditFields, createEditor } from "@/lib/editor/f
 
 // Manual-only cells of the committee summary (# others, points override,
 // comments). The computed columns (chairs, totals, points) are derived live
-// from cfp_committee_assignment and never stored.
+// from the committees.members matrix cells and never stored.
 const TABLE = "cfp_committee_service_summary";
 
 function buildEditor(): Editor {
