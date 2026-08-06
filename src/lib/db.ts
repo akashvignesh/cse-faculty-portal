@@ -8,15 +8,15 @@ import { env, isDbMode } from "./env";
  * the pre-existing read-only cfp_faculty — must only be touched via SELECTs in
  * src/server/queries with schema-qualified names.
  *
- * people.cfp_faculty_teaching_prefs is also editable, but lives in another
- * schema, so it is written via plain knex statements rather than Editor.
+ * Two editable tables live in other schemas and are therefore written via
+ * plain knex statements rather than Editor:
+ *   people.cfp_faculty_teaching_prefs  (teaching preferences)
+ *   committees.members                 (committee matrix assignments)
  */
 export const WRITABLE_TABLES: ReadonlySet<string> = new Set([
   "cfp_faculty_course_plan",
   "cfp_faculty_semester_plan",
   "cfp_faculty_role",
-  "cfp_committee_catalog",
-  "cfp_committee_assignment",
   "cfp_service_categories",
   "cfp_committee_service_summary",
   "cfp_faculty_leave",

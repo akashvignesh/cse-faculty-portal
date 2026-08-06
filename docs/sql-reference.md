@@ -257,10 +257,11 @@ so the full UI rating scale now round-trips.
 | `getCommitteeMemberships` — `committees.ts:6` | `GET /api/v1/committees/memberships?userId=` | `SELECT c.name committeeName, m.role FROM committees.committees c JOIN committees.members m ON m.committee_id = c.id WHERE m.userid = ? ORDER BY c.name` |
 | `getActiveCourses` — `courses.ts:13`          | `GET /api/v1/courses/active`                 | ranked `ps_rpt.ps_course_catalog_v` (latest active row per `crse_id`) → `courseId`, `subject`, `courseName` (`"<catalog>-<title>"`)                      |
 
-Schema notes: `committees.members.role` is a free-text `varchar(16)` (not an
-enum — the `cfp_committee_assignment.role_code` ENUM is the editable side);
-`committees.committees.name varchar(255)` is `UNIQUE`; `committee_id` →
-`committees.committees.id` is a declared FK. The catalog view's relevant
+Schema notes: `committees.members.role` is a free-text `varchar(16)` — the
+portal writes only the vocabulary in `src/lib/committeeRoles.ts` (`Chair`,
+`Vice Chair`, `Member`, `Role`, `Position`) and displays any other legacy
+value as Member; `committees.committees.name varchar(255)` is `UNIQUE`;
+`committee_id` → `committees.committees.id` is a declared FK. The catalog view's relevant
 columns are `crse_id varchar(6)` (PK), `primarysubject varchar(3)`,
 `primarycatalognumber varchar(10)`, `coursetitlelong varchar(100)`,
 `effectivestatus varchar(1)`, `effectivedate date` — the "ranked latest
@@ -278,8 +279,8 @@ pkey is exposed as a read-only field on every editor (`.set(false)`).
 
 | Route                   | Table (pkey)                                           | Editable fields + validators                                                                                                                      | Join (read-only fields)                                               | GET filters                                        |
 | ----------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------- |
-| `committee-catalog`     | `cfp_committee_catalog` (`catalog_id`)                 | `source_committee_id` num, `name` notEmpty+max255, `kind` ∈ leadership/committee/taskforce/seas/pool, `service_category` 1–6, `display_order` num | —                                                                     | —                                                  |
-| `committee-assignments` | `cfp_committee_assignment` (`assignment_id`)           | `catalog_id` req+num, `userid` req+max8, `role_code` ∈ P/C/V/X/A, `academic_year` req+`YYYY-YYYY`                                                 | `cfp_committee_catalog`: `name`, `kind`, `service_category`           | `academic_year`, `userid`                          |
+| `committee-catalog`     | `committees.committees` (`id`)                         | **GET-only** plain knex: `SELECT id, ub_ent_abbr, name, description, cms_display ORDER BY id` (POST → 405; the committee list is managed in the table itself)      | —                                                                     | —                                                  |
+| `committee-assignments` | `committees.members` (`id`) — plain knex, Editor wire format | `committee_id` req+num, `userid` req+max8, `role` ∈ `ALLOWED_MEMBER_ROLES` (Chair/Vice Chair/Member/Role/Position); creates upsert on `(committee_id, userid)` | `committees.committees`: `name`                                       | `userid`                                           |
 | `service-summary`       | `cfp_committee_service_summary` (`service_summary_id`) | `userid` req+max8, `academic_year` req+`YYYY-YYYY`, `others_count` num, `service_points_override` num, `comments` max1024                         | —                                                                     | `academic_year`, `userid`                          |
 | `course-plan`           | `cfp_faculty_course_plan` (`course_plan_id`)           | `person_number` req+max8, `academic_year` req+`YYYY-YYYY`, `faculty_type` ∈ Prof Track/Lecture 10/Lecture 12, `locked` 0/1                        | —                                                                     | `person_number`, `academic_year`                   |
 | `semester-plan`         | `cfp_faculty_semester_plan` (`semester_plan_id`)       | `course_plan_id` req+num, `term` ∈ summer/fall/spring, `slot_status` ∈ Teaching/Not Teaching, `slot_comment` max60                                | `cfp_faculty_course_plan`: `person_number`, `academic_year`, `locked` | `course_plan_id`, `person_number`, `academic_year` |
@@ -293,13 +294,16 @@ pkey is exposed as a read-only field on every editor (`.set(false)`).
 `LEAVE_TYPES` (`src/lib/leaveTypes.ts`) are the single sources of truth shared
 between each route's `Validate.values(...)` and the editing UI.
 
-**Committee auto-populate** (not an HTTP route) —
-[`db/migration/autofill_committee_assignments.sql`](../db/migration/autofill_committee_assignments.sql)
-is a re-runnable, non-destructive script (idempotent via `NOT EXISTS`,
-tagged `editor='AUTOFILL'`) that derives `cfp_committee_assignment` rows from
-the live `committees.members` roster and from `cfp_faculty_role` leadership.
-It opens with `SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci` so literals,
-variables, and `CONVERT(...)` results all match the `cfp_*` column collation.
+**Leadership seed** (not an HTTP route) —
+[`db/migration/seed_leadership_committees.sql`](../db/migration/seed_leadership_committees.sql)
+inserts the five leadership "Roles" matrix columns (Chair, Associate Chair,
+"DGS, DGA, DUS", Director of Research, Center Director) into
+`committees.committees` with `cms_display = 0` so their X marks can live in
+`committees.members` like every other cell. Idempotent via `NOT EXISTS`,
+tagged `editor='SEED'`.
+(`db/migration/autofill_committee_assignments.sql` is retired — the matrix
+now reads and writes `committees.members` directly, so there is nothing to
+mirror into `cfp_committee_assignment` anymore.)
 
 **Wire format** (`src/lib/editor/client.ts` speaks it): GET returns
 `{data: [{DT_RowId: "row_<pk>", "<table>": {col: val}, "<joined table>": {...}}]}`;
@@ -378,9 +382,12 @@ then add it to the assembled return object → mapper → detail component
 
 ## Constraints cheat sheet (live DB, verified 2026-06)
 
-- `cfp_committee_assignment`: UNIQUE `(catalog_id, userid, academic_year)`;
-  `role_code` ENUM P/C/V/X/A. UI mapping: role columns X↔P; committee
-  columns R↔P, C↔C, V↔V, M↔X (A displays as M).
+- `committees.members`: UNIQUE `(committee_id, userid)`; `role` free-text
+  `varchar(16)`. UI mapping (`src/lib/committeeRoles.ts`): role columns
+  X↔`Position` (any non-empty value displays as X); committee columns
+  C↔`Chair`, V↔`Vice Chair`, R↔`Role`, M↔`Member` (unknown legacy values
+  display as M). **Writable** — the committee matrix's storage table.
+  (`cfp_committee_catalog` / `cfp_committee_assignment` are retired.)
 - `cfp_faculty_course_plan`: UNIQUE `(person_number, academic_year)`;
   `faculty_type` ENUM; `locked` gates all plan/slot writes.
 - `cfp_faculty_semester_plan`: FK → course_plan `ON DELETE CASCADE`;
@@ -400,10 +407,11 @@ then add it to the assembled return object → mapper → detail component
   CHECK `pref BETWEEN 0 AND 5` (widened from 0–4 by
   `db/migration/widen_teaching_pref_check.sql`);
   CHECK `term_code REGEXP '^[0-9]{3}[569]$'`.
-- Everything else (`ps_rpt.*`, `dce.*`, `committees.*`, `people.*` non-prefs,
-  `cfp_faculty`, `cfp_appointments`, `cfp_teaching_reductions`,
-  `cfp_faculty_load_balance`) is **read-only** by ground rule (upstream-owned;
-  name/appointment/etc. are loaded from the university DB).
+- Everything else (`ps_rpt.*`, `dce.*`, `committees.committees`, `people.*`
+  non-prefs, `cfp_faculty`, `cfp_appointments`, `cfp_teaching_reductions`,
+  `cfp_faculty_load_balance`) is **read-only** by ground rule (upstream-owned).
+  (`committees.members` is the exception in the committees schema — the
+  committee matrix reads and writes it; see above.)
 - **Profile-editable (department-owned)** via `PATCH /api/v1/faculty/[id]/profile`
   (RBAC `profile:edit(-own)`, transactional, `editor`/`dt` audited):
   `cfp_faculty_primary_email`, `cfp_faculty_primary_phone_number`,
@@ -417,7 +425,6 @@ then add it to the assembled return object → mapper → detail component
   empty until these are loaded.
 - **Declared FKs** are sparse by design (legacy MySQL schemas). Enforced ones:
   `committees.members.committee_id → committees.id`,
-  `ubs_emp.cfp_committee_assignment.catalog_id → cfp_committee_catalog`,
   `ubs_emp.cfp_faculty_semester_plan.course_plan_id → cfp_faculty_course_plan`,
   and `ubs_emp.cfp_course_area_tag.tag_id → cfp_area_tag_master` (the last two
   with `ON DELETE CASCADE`). All other "relationships" above are join

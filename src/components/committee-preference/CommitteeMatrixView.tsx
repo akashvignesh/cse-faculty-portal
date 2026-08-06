@@ -9,12 +9,26 @@ import { EditorError } from "@/lib/editor/client";
 import { displayValue } from "@/lib/format";
 import { currentAcademicYear } from "@/lib/term";
 import {
+  createMatrixColumn,
+  deleteMatrixColumn,
+  fetchServiceCategories,
   loadMatrixData,
   saveMatrix,
+  updateMatrixColumn,
+  type ColumnDraft,
   type LoadedAssignment,
   type LoadedSummary,
   type MatrixColumn,
+  type ServiceCategory,
 } from "@/services/committee/committeeMatrixService";
+import {
+  computeServicePoints,
+  countChairs,
+  countCommittees,
+  countOthers,
+  formatServicePoints,
+  type CommitteeKind,
+} from "@/services/committee/committeeSummary";
 import { findFacultyByUserid, loadFacultyRecords } from "@/services/faculty/facultyService";
 import type { Faculty } from "@/types/faculty";
 
@@ -34,21 +48,15 @@ const LEGEND_ITEMS = [
   { value: "M", label: "Member", badgeClass: "committee-matrix-legend-badge-m" },
 ];
 
-interface SummaryCol {
-  key: string;
-  label: string;
-  editable: boolean;
-  autoCompute?: boolean;
-  type?: "number" | "text";
-}
-
-const SUMMARY_COLS: SummaryCol[] = [
-  { key: "chairs", label: "# of Chairs", editable: false, autoCompute: true },
-  { key: "total", label: "# of Committees", editable: false, autoCompute: false },
-  { key: "others", label: "# of Others", editable: true, type: "number" },
-  { key: "servicePoints", label: "Service Points", editable: true, type: "number" },
-  { key: "comments", label: "Comments", editable: true, type: "text" },
-];
+// Summary columns — all computed live with the service workbook's formulas
+// except Comments, which is manual and persisted per faculty.
+const SUMMARY_COLS = [
+  { key: "chairs", label: "# of Chairs", editable: false },
+  { key: "total", label: "# of Committees", editable: false },
+  { key: "others", label: "# of Others", editable: false },
+  { key: "servicePoints", label: "Service Points", editable: false },
+  { key: "comments", label: "Comments", editable: true },
+] as const;
 
 // Collapsible aggregate rows shown above the faculty list
 const COUNT_ROW_DEFS = [
@@ -59,12 +67,29 @@ const COUNT_ROW_DEFS = [
   { key: "servicePoints", label: "Service Points", static: true },
 ];
 
+const KIND_OPTIONS: { value: CommitteeKind; label: string }[] = [
+  { value: "leadership", label: "Role (leadership)" },
+  { value: "committee", label: "Committee" },
+  { value: "taskforce", label: "Task force" },
+  { value: "seas", label: "SEAS" },
+  { value: "pool", label: "Pool" },
+];
+
+const EMPTY_DRAFT: ColumnDraft = { name: "", kind: "committee", category: 2 };
+
+function draftsFromColumns(columns: MatrixColumn[]): Record<number, ColumnDraft> {
+  const drafts: Record<number, ColumnDraft> = {};
+  for (const column of columns) {
+    drafts[column.id] = { name: column.name, kind: column.kind, category: column.category };
+  }
+  return drafts;
+}
+
 export default function CommitteeMatrixView({ userid }: { userid: string }) {
   const academicYear = useMemo(() => currentAcademicYear(), []);
-  const { can, canEditResource, isLoading: isAuthLoading } = usePermission();
-  // Committee management is chair-only — without committee:view the page
-  // never loads data and renders an access notice instead (the four data
-  // endpoints reject reads server-side as well).
+  const { can, isLoading: isAuthLoading } = usePermission();
+  // Committee management is chair-only — without committee:view the page never
+  // loads data and renders an access notice (the data endpoints 403 too).
   const canViewCommittee = can("committee:view");
 
   const [records, setRecords] = useState<Faculty[]>([]);
@@ -75,31 +100,25 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [memberships, setMemberships] = useState<Record<string, string>>({});
-  const [extras, setExtras] = useState<Record<string, Record<string, string>>>({});
+  const [comments, setComments] = useState<Record<string, string>>({});
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showCounts, setShowCounts] = useState(false);
   const [showReportsMenu, setShowReportsMenu] = useState(false);
 
+  // ── Edit-columns panel state ──
+  const [editMode, setEditMode] = useState(false);
+  const [columnDrafts, setColumnDrafts] = useState<Record<number, ColumnDraft>>({});
+  const [newColumn, setNewColumn] = useState<ColumnDraft>(EMPTY_DRAFT);
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editMessage, setEditMessage] = useState("");
+  const [editError, setEditError] = useState("");
+
   const roleCols = useMemo(() => columns.filter((c) => c.type === "role"), [columns]);
   const committeeCols = useMemo(() => columns.filter((c) => c.type === "committee"), [columns]);
-
-  // RBAC (server-enforced too): chair/staff edit every row, faculty only the
-  // row whose userid is their own, viewer none. Assignment cells and summary
-  // cells are separate resources but share the same tiers.
-  function canEditRow(uid: string): boolean {
-    return canEditResource("committee-assignment", uid) !== "none";
-  }
-  function canEditSummary(uid: string): boolean {
-    return canEditResource("service-summary", uid) !== "none";
-  }
-  const anyRowEditable = useMemo(
-    () => records.some((member) => canEditRow(member.userid)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [records, canEditResource]
-  );
-  const ownRowsOnly = anyRowEditable && !records.every((member) => canEditRow(member.userid));
 
   function applyLoadedData(data: {
     source: "db" | "mock";
@@ -111,6 +130,7 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
     setColumns(data.columns);
     setLoadedAssignments(data.assignments);
     setLoadedSummaries(data.summaries);
+    setColumnDrafts(draftsFromColumns(data.columns));
 
     const cells: Record<string, string> = {};
     data.assignments.forEach((assignment) => {
@@ -118,15 +138,12 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
     });
     setMemberships(cells);
 
-    const extrasByUser: Record<string, Record<string, string>> = {};
+    const commentsByUser: Record<string, string> = {};
     data.summaries.forEach((summary) => {
-      extrasByUser[summary.userid] = {
-        others: summary.others,
-        servicePoints: summary.servicePoints,
-        comments: summary.comments,
-      };
+      commentsByUser[summary.userid] = summary.comments;
     });
-    setExtras(extrasByUser);
+    setComments(commentsByUser);
+    setHasUnsavedChanges(false);
   }
 
   useEffect(() => {
@@ -154,8 +171,6 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
       }
     }
 
-    // Wait for the session, and never fetch without committee:view — the
-    // data endpoints would 403 anyway.
     if (!isAuthLoading && canViewCommittee) {
       load();
     }
@@ -178,26 +193,58 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
 
   function setValue(uid: string, committeeId: number, value: string) {
     setMemberships((cur) => ({ ...cur, [`${uid}-${committeeId}`]: value }));
+    setHasUnsavedChanges(true);
     setSubmitMessage("");
     setSubmitError("");
   }
 
-  function countChairs(uid: string): number {
-    return committeeCols.filter((c) => getValue(uid, c.id) === "C").length;
+  function getComment(uid: string): string {
+    return comments[uid] ?? "";
   }
 
-  function countCommittees(uid: string): number {
-    return committeeCols.filter((c) => Boolean(getValue(uid, c.id))).length;
-  }
-
-  function getExtra(uid: string, key: string): string {
-    return extras[uid]?.[key] ?? "";
-  }
-
-  function setExtra(uid: string, key: string, val: string) {
-    setExtras((cur) => ({ ...cur, [uid]: { ...cur[uid], [key]: val } }));
+  function setComment(uid: string, value: string) {
+    setComments((cur) => ({ ...cur, [uid]: value }));
+    setHasUnsavedChanges(true);
     setSubmitMessage("");
     setSubmitError("");
+  }
+
+  /** Restores cells/comments to the last-loaded (saved) state. */
+  function resetUnsavedChanges() {
+    const cells: Record<string, string> = {};
+    loadedAssignments.forEach((assignment) => {
+      cells[`${assignment.userid}-${assignment.catalogId}`] = assignment.uiCode;
+    });
+    setMemberships(cells);
+
+    const commentsByUser: Record<string, string> = {};
+    loadedSummaries.forEach((summary) => {
+      commentsByUser[summary.userid] = summary.comments;
+    });
+    setComments(commentsByUser);
+    setHasUnsavedChanges(false);
+  }
+
+  // Computed summary values (workbook formulas — see committeeSummary.ts).
+  function computedSummary(uid: string, key: string): string {
+    const getCell = (committeeId: number) => getValue(uid, committeeId);
+    switch (key) {
+      case "chairs":
+        return String(countChairs(columns, getCell));
+      case "total":
+        return String(countCommittees(columns, getCell));
+      case "others":
+        return String(countOthers(columns, getCell));
+      case "servicePoints":
+        return formatServicePoints(computeServicePoints(columns, getCell));
+      default:
+        return "";
+    }
+  }
+
+  async function reloadMatrix() {
+    const refreshed = await loadMatrixData(academicYear);
+    applyLoadedData(refreshed);
   }
 
   async function handleSubmit() {
@@ -209,6 +256,7 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
       setSubmitMessage(
         `Saved ${total} assignment${total === 1 ? "" : "s"} (mock mode — not persisted).`
       );
+      setHasUnsavedChanges(false);
       return;
     }
 
@@ -218,15 +266,14 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
         academicYear,
         memberships,
         loadedAssignments,
-        extras,
+        comments,
         loadedSummaries,
       });
       // Reload so the baseline reflects what is now stored.
-      const refreshed = await loadMatrixData(academicYear);
-      applyLoadedData(refreshed);
+      await reloadMatrix();
       setSubmitMessage(
         `Saved: ${result.created} added, ${result.updated} updated, ${result.removed} removed` +
-          (result.summariesSaved > 0 ? `, ${result.summariesSaved} summary rows.` : ".")
+          (result.summariesSaved > 0 ? `, ${result.summariesSaved} comment rows.` : ".")
       );
     } catch (error) {
       if (error instanceof EditorError) {
@@ -237,6 +284,104 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  // ── Edit-mode handlers ──
+
+  async function toggleEditMode() {
+    const next = !editMode;
+    if (!next && hasUnsavedChanges) {
+      const discard = window.confirm(
+        "You have unsaved changes. Leave edit mode and discard them?\n\nClick Cancel to stay and use Save Changes to keep them."
+      );
+      if (!discard) return;
+      resetUnsavedChanges();
+    }
+    setEditMode(next);
+    setEditMessage("");
+    setEditError("");
+    setSubmitMessage("");
+    setSubmitError("");
+    if (next && categories.length === 0 && dataSource === "db") {
+      setCategories(await fetchServiceCategories());
+    }
+  }
+
+  function setDraft(id: number, patch: Partial<ColumnDraft>) {
+    setColumnDrafts((cur) => {
+      const existing = cur[id];
+      if (!existing) return cur;
+      return { ...cur, [id]: { ...existing, ...patch } };
+    });
+  }
+
+  function isDraftDirty(column: MatrixColumn): boolean {
+    const draft = columnDrafts[column.id];
+    if (!draft) return false;
+    return (
+      draft.name !== column.name ||
+      draft.kind !== column.kind ||
+      (draft.category ?? null) !== (column.category ?? null)
+    );
+  }
+
+  async function runEditOp(op: () => Promise<void>, successMessage: string) {
+    setEditBusy(true);
+    setEditMessage("");
+    setEditError("");
+    try {
+      await op();
+      await reloadMatrix();
+      setEditMessage(successMessage);
+    } catch (error) {
+      setEditError(
+        error instanceof EditorError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Unknown error."
+      );
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
+  async function handleAddColumn() {
+    const name = newColumn.name.trim();
+    if (!name) {
+      setEditError("Enter a name for the new committee or role.");
+      return;
+    }
+    await runEditOp(() => createMatrixColumn({ ...newColumn, name }), `Added "${name}".`);
+    setNewColumn(EMPTY_DRAFT);
+  }
+
+  async function handleSaveColumn(column: MatrixColumn) {
+    const draft = columnDrafts[column.id];
+    if (!draft) return;
+    const name = draft.name.trim();
+    if (!name) {
+      setEditError("Column name cannot be empty.");
+      return;
+    }
+    await runEditOp(() => updateMatrixColumn(column.id, { ...draft, name }), `Updated "${name}".`);
+  }
+
+  async function handleDeleteColumn(column: MatrixColumn) {
+    const confirmed = window.confirm(
+      `Delete "${column.name}"?\n\nThis removes the column AND every assignment stored in it. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    await runEditOp(() => deleteMatrixColumn(column.id), `Deleted "${column.name}".`);
+  }
+
+  function categoryOptions() {
+    if (categories.length > 0) return categories;
+    return [1, 2, 3, 4, 5, 6].map((category) => ({
+      category,
+      label: `Category ${category}`,
+      points: 0,
+    }));
   }
 
   // Per-column aggregate counts for the collapsible count rows
@@ -276,9 +421,9 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
       {!isAuthLoading && !canViewCommittee ? (
         <div className="faculty-detail-body">
           <div className="faculty-table-status faculty-table-status-error" role="alert">
-            Committee management is handled by the department chair. Your role does not have
-            access to this page — committee memberships are shown on each faculty profile under
-            the Committee tab.
+            Committee management is handled by the department chair. Your role does not have access
+            to this page — committee memberships are shown on each faculty profile under the
+            Committee tab.
           </div>
         </div>
       ) : isLoading ? (
@@ -326,15 +471,12 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                     <p>
                       Faculty committee membership assignments for {academicYear}
                       {dataSource === "mock" ? " (mock data)" : ""}.
-                      {ownRowsOnly
-                        ? " You can edit only your own row — other rows are shown read-only."
-                        : ""}
                     </p>
                   </div>
 
                   <div className="faculty-secondary-body">
                     <div className="faculty-secondary-section faculty-preference-section-inline">
-                      {/* ── Toolbar: legend + counts toggle ── */}
+                      {/* ── Toolbar: legend + counts toggle + edit + reports ── */}
                       <div className="committee-matrix-toolbar">
                         <div className="committee-matrix-legend" aria-label="Role legend">
                           {LEGEND_ITEMS.map((item) => (
@@ -358,6 +500,15 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                               {showCounts ? "▼" : "▶"}
                             </span>
                             {showCounts ? "Hide Column Counts" : "Show Column Counts"}
+                          </button>
+
+                          <button
+                            type="button"
+                            className={`committee-reports-toggle${editMode ? " committee-edit-toggle-on" : ""}`}
+                            onClick={toggleEditMode}
+                            aria-expanded={editMode}
+                          >
+                            {editMode ? "Done Editing" : "Edit"}
                           </button>
 
                           <div className="committee-reports-dropdown">
@@ -393,6 +544,173 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                           </div>
                         </div>
                       </div>
+
+                      {/* ── Edit-columns panel ── */}
+                      {editMode ? (
+                        <div
+                          className="committee-edit-panel"
+                          aria-label="Edit committees and roles"
+                        >
+                          {dataSource === "mock" ? (
+                            <div className="committee-edit-note" role="note">
+                              Editing committees and roles requires database mode — changes here are
+                              disabled while the portal runs on mock data.
+                            </div>
+                          ) : (
+                            <>
+                              <div className="committee-edit-add-row">
+                                <input
+                                  type="text"
+                                  className="committee-edit-name-input"
+                                  placeholder="New committee or role name…"
+                                  value={newColumn.name}
+                                  onChange={(e) =>
+                                    setNewColumn((cur) => ({ ...cur, name: e.target.value }))
+                                  }
+                                  aria-label="New column name"
+                                  disabled={editBusy}
+                                />
+                                <select
+                                  className="committee-edit-select"
+                                  value={newColumn.kind}
+                                  onChange={(e) =>
+                                    setNewColumn((cur) => ({
+                                      ...cur,
+                                      kind: e.target.value as CommitteeKind,
+                                    }))
+                                  }
+                                  aria-label="New column type"
+                                  disabled={editBusy}
+                                >
+                                  {KIND_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  className="committee-edit-select"
+                                  value={newColumn.category ?? ""}
+                                  onChange={(e) =>
+                                    setNewColumn((cur) => ({
+                                      ...cur,
+                                      category:
+                                        e.target.value === "" ? null : Number(e.target.value),
+                                    }))
+                                  }
+                                  aria-label="New column service category"
+                                  disabled={editBusy}
+                                >
+                                  <option value="">No category</option>
+                                  {categoryOptions().map((option) => (
+                                    <option key={option.category} value={option.category}>
+                                      {option.category} — {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="committee-edit-add-btn"
+                                  onClick={handleAddColumn}
+                                  disabled={editBusy}
+                                >
+                                  + Add
+                                </button>
+                              </div>
+
+                              <div className="committee-edit-list">
+                                {columns.map((column) => {
+                                  const draft = columnDrafts[column.id];
+                                  if (!draft) return null;
+                                  const dirty = isDraftDirty(column);
+                                  return (
+                                    <div key={column.id} className="committee-edit-row">
+                                      <input
+                                        type="text"
+                                        className="committee-edit-name-input"
+                                        value={draft.name}
+                                        onChange={(e) =>
+                                          setDraft(column.id, { name: e.target.value })
+                                        }
+                                        aria-label={`Name for ${column.name}`}
+                                        disabled={editBusy}
+                                      />
+                                      <select
+                                        className="committee-edit-select"
+                                        value={draft.kind}
+                                        onChange={(e) =>
+                                          setDraft(column.id, {
+                                            kind: e.target.value as CommitteeKind,
+                                          })
+                                        }
+                                        aria-label={`Type for ${column.name}`}
+                                        disabled={editBusy}
+                                      >
+                                        {KIND_OPTIONS.map((option) => (
+                                          <option key={option.value} value={option.value}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        className="committee-edit-select"
+                                        value={draft.category ?? ""}
+                                        onChange={(e) =>
+                                          setDraft(column.id, {
+                                            category:
+                                              e.target.value === "" ? null : Number(e.target.value),
+                                          })
+                                        }
+                                        aria-label={`Service category for ${column.name}`}
+                                        disabled={editBusy}
+                                      >
+                                        <option value="">No category</option>
+                                        {categoryOptions().map((option) => (
+                                          <option key={option.category} value={option.category}>
+                                            {option.category} — {option.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        type="button"
+                                        className="committee-edit-save-btn"
+                                        onClick={() => handleSaveColumn(column)}
+                                        disabled={editBusy || !dirty}
+                                        title={dirty ? "Save changes to this column" : "No changes"}
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="committee-edit-delete-btn"
+                                        onClick={() => handleDeleteColumn(column)}
+                                        disabled={editBusy}
+                                        title="Delete this column and all its assignments"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {editMessage ? (
+                                <div className="faculty-course-preference-feedback" role="status">
+                                  {editMessage}
+                                </div>
+                              ) : null}
+                              {editError ? (
+                                <div
+                                  className="faculty-table-status faculty-table-status-error"
+                                  role="alert"
+                                >
+                                  {editError}
+                                </div>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      ) : null}
 
                       {/* ── Matrix table ── */}
                       <div className="committee-matrix-wrapper">
@@ -484,8 +802,6 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                             {/* ── Faculty rows ── */}
                             {records.map((member, rowIndex) => {
                               const isEven = rowIndex % 2 === 1;
-                              const rowEditable = canEditRow(member.userid);
-                              const summaryEditable = canEditSummary(member.userid);
                               return (
                                 <tr key={member.userid}>
                                   {/* Sticky name cell */}
@@ -495,123 +811,109 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                                     {member.name}
                                   </td>
 
-                                  {/* Role columns — single X button (no checkbox) */}
+                                  {/* Role columns — X badge (read-only) / toggle (edit mode) */}
                                   {roleCols.map((c) => {
                                     const marked = getValue(member.userid, c.id) === "X";
-                                    if (!rowEditable) {
-                                      return (
-                                        <td key={c.id} className="committee-matrix-td-cell">
-                                          <span
-                                            className="committee-matrix-td-computed"
+                                    return (
+                                      <td key={c.id} className="committee-matrix-td-cell">
+                                        {editMode ? (
+                                          <button
+                                            type="button"
+                                            className={
+                                              marked
+                                                ? "committee-matrix-role-btn committee-matrix-role-btn-on"
+                                                : "committee-matrix-role-btn committee-matrix-role-btn-off"
+                                            }
+                                            onClick={() =>
+                                              setValue(member.userid, c.id, marked ? "" : "X")
+                                            }
+                                            aria-label={`${member.name} — ${c.name}${marked ? " (assigned)" : ""}`}
+                                            aria-pressed={marked}
                                             title={`${member.name} — ${c.name}`}
                                           >
                                             {marked ? "X" : ""}
+                                          </button>
+                                        ) : marked ? (
+                                          <span
+                                            className="committee-matrix-legend-badge committee-matrix-static-x"
+                                            title={`${member.name} — ${c.name} (assigned)`}
+                                          >
+                                            X
                                           </span>
-                                        </td>
-                                      );
-                                    }
-                                    return (
-                                      <td key={c.id} className="committee-matrix-td-cell">
-                                        <button
-                                          type="button"
-                                          className={
-                                            marked
-                                              ? "committee-matrix-role-btn committee-matrix-role-btn-on"
-                                              : "committee-matrix-role-btn committee-matrix-role-btn-off"
-                                          }
-                                          onClick={() =>
-                                            setValue(member.userid, c.id, marked ? "" : "X")
-                                          }
-                                          aria-label={`${member.name} — ${c.name}${marked ? " (assigned)" : ""}`}
-                                          aria-pressed={marked}
-                                          title={`${member.name} — ${c.name}`}
-                                        >
-                                          {marked ? "X" : ""}
-                                        </button>
+                                        ) : null}
                                       </td>
                                     );
                                   })}
 
-                                  {/* Committee columns — R/C/V/M dropdown */}
+                                  {/* Committee columns — badge (read-only) / R/C/V/M dropdown (edit mode) */}
                                   {committeeCols.map((c) => {
                                     const val = getValue(member.userid, c.id);
-                                    if (!rowEditable) {
-                                      return (
-                                        <td key={c.id} className="committee-matrix-td-cell">
-                                          <span
-                                            className="committee-matrix-td-computed"
-                                            title={`${member.name} — ${c.name}`}
-                                          >
-                                            {val || ""}
-                                          </span>
-                                        </td>
-                                      );
-                                    }
                                     return (
                                       <td key={c.id} className="committee-matrix-td-cell">
-                                        <select
-                                          className={`committee-matrix-select${val ? ` committee-matrix-select-${val}` : ""}`}
-                                          value={val}
-                                          onChange={(e) =>
-                                            setValue(member.userid, c.id, e.target.value)
-                                          }
-                                          aria-label={`${member.name} — ${c.name}`}
-                                          title={`${member.name} — ${c.name}`}
-                                        >
-                                          {COMMITTEE_OPTIONS.map((opt) => (
-                                            <option key={opt.value} value={opt.value}>
-                                              {opt.label}
-                                            </option>
-                                          ))}
-                                        </select>
+                                        {editMode ? (
+                                          <select
+                                            className={`committee-matrix-select${val ? ` committee-matrix-select-${val}` : ""}`}
+                                            value={val}
+                                            onChange={(e) =>
+                                              setValue(member.userid, c.id, e.target.value)
+                                            }
+                                            aria-label={`${member.name} — ${c.name}`}
+                                            title={`${member.name} — ${c.name}`}
+                                          >
+                                            {COMMITTEE_OPTIONS.map((opt) => (
+                                              <option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        ) : val ? (
+                                          <span
+                                            className={`committee-matrix-legend-badge committee-matrix-legend-badge-${val.toLowerCase()}`}
+                                            title={`${member.name} — ${c.name}`}
+                                          >
+                                            {val}
+                                          </span>
+                                        ) : null}
                                       </td>
                                     );
                                   })}
 
-                                  {/* Summary cells */}
+                                  {/* Summary cells — computed except Comments */}
                                   {SUMMARY_COLS.map((col) => {
                                     if (!col.editable) {
-                                      const computed = col.autoCompute
-                                        ? countChairs(member.userid)
-                                        : countCommittees(member.userid);
                                       return (
                                         <td
                                           key={col.key}
                                           className="committee-matrix-td-summary committee-matrix-td-computed"
+                                          title={`${col.label} for ${member.name} (computed)`}
                                         >
-                                          {computed}
-                                        </td>
-                                      );
-                                    }
-                                    if (!summaryEditable) {
-                                      return (
-                                        <td
-                                          key={col.key}
-                                          className={`committee-matrix-td-summary${col.type === "text" ? " committee-matrix-td-comments" : ""}`}
-                                        >
-                                          {getExtra(member.userid, col.key)}
+                                          {computedSummary(member.userid, col.key)}
                                         </td>
                                       );
                                     }
                                     return (
                                       <td
                                         key={col.key}
-                                        className={`committee-matrix-td-summary${col.type === "text" ? " committee-matrix-td-comments" : ""}`}
+                                        className="committee-matrix-td-summary committee-matrix-td-comments"
                                       >
-                                        <input
-                                          type={col.type}
-                                          className={
-                                            col.type === "text"
-                                              ? "committee-matrix-input-text"
-                                              : "committee-matrix-input-number"
-                                          }
-                                          value={getExtra(member.userid, col.key)}
-                                          onChange={(e) =>
-                                            setExtra(member.userid, col.key, e.target.value)
-                                          }
-                                          aria-label={`${col.label} for ${member.name}`}
-                                          min={col.type === "number" ? "0" : undefined}
-                                        />
+                                        {editMode ? (
+                                          <input
+                                            type="text"
+                                            className="committee-matrix-input-text"
+                                            value={getComment(member.userid)}
+                                            onChange={(e) =>
+                                              setComment(member.userid, e.target.value)
+                                            }
+                                            aria-label={`${col.label} for ${member.name}`}
+                                          />
+                                        ) : (
+                                          <span
+                                            className="committee-matrix-static-comment"
+                                            title={getComment(member.userid)}
+                                          >
+                                            {getComment(member.userid)}
+                                          </span>
+                                        )}
                                       </td>
                                     );
                                   })}
@@ -622,36 +924,35 @@ export default function CommitteeMatrixView({ userid }: { userid: string }) {
                         </table>
                       </div>
 
-                      {/* ── Actions ── */}
-                      <div className="faculty-preference-actions">
-                        {anyRowEditable ? (
+                      {/* ── Actions (edit mode only) ── */}
+                      {editMode ? (
+                        <div className="faculty-preference-actions">
                           <button
                             type="button"
                             className="faculty-course-preference-submit"
                             onClick={handleSubmit}
-                            disabled={isSaving}
+                            disabled={isSaving || !hasUnsavedChanges}
+                            title={
+                              hasUnsavedChanges ? "Save assignment changes" : "No unsaved changes"
+                            }
                           >
                             {isSaving ? "Saving…" : "Save Changes"}
                           </button>
-                        ) : (
-                          <div className="faculty-table-status" role="status">
-                            You have read-only access to committee assignments.
-                          </div>
-                        )}
-                        {submitMessage ? (
-                          <div className="faculty-course-preference-feedback" role="status">
-                            {submitMessage}
-                          </div>
-                        ) : null}
-                        {submitError ? (
-                          <div
-                            className="faculty-table-status faculty-table-status-error"
-                            role="alert"
-                          >
-                            {submitError}
-                          </div>
-                        ) : null}
-                      </div>
+                          {submitMessage ? (
+                            <div className="faculty-course-preference-feedback" role="status">
+                              {submitMessage}
+                            </div>
+                          ) : null}
+                          {submitError ? (
+                            <div
+                              className="faculty-table-status faculty-table-status-error"
+                              role="alert"
+                            >
+                              {submitError}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </section>
