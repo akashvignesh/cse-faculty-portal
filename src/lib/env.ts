@@ -63,8 +63,14 @@ export const env = loadEnv();
 export const isDbMode = env.FACULTY_DATA_MODE === "db";
 
 /**
- * The dev role switcher (cookie-based impersonation) is on in every non-prod
- * build, and only in production when explicitly opted in via AUTH_DEV_SWITCHER=1.
+ * The role switcher (cookie-based impersonation) is ON by default everywhere —
+ * including the deployed test server — so testers can switch roles/users from
+ * the UI during the pre-SSO testing phase without any server-side env changes.
+ *
+ * SECURITY: while on, anyone who can reach the server can impersonate any role
+ * (including chair). Keep the test server on the restricted CSE network, and
+ * for a key gate set AUTH_DEV_SWITCHER_SECRET. Turn the switcher OFF for real
+ * production, or once UB SSO replaces impersonation, by setting
+ * AUTH_DEV_SWITCHER=0.
  */
-export const isDevSwitcherEnabled =
-  process.env.NODE_ENV !== "production" || env.AUTH_DEV_SWITCHER === "1";
+export const isDevSwitcherEnabled = env.AUTH_DEV_SWITCHER !== "0";

@@ -7,8 +7,8 @@ import { env, isDevSwitcherEnabled } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
-// Dev-only role/user impersonation for testing RBAC before SSO lands.
-// Inert in production builds (404) unless AUTH_DEV_SWITCHER=1. When
+// Role/user impersonation for testing RBAC before SSO lands. On by default
+// (testing phase); returns 404 only when disabled via AUTH_DEV_SWITCHER=0. When
 // AUTH_DEV_SWITCHER_SECRET is set (recommended on a deployed test server), the
 // caller must present it in the `x-dev-switcher-secret` header.
 
