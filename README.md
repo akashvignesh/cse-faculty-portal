@@ -119,9 +119,10 @@ Key invariants:
   categories/summary, the two area-tag tables, plus the pre-existing
   `cfp_faculty_leave`, which the leave editor writes. Two cross-schema tables
   accept DML via plain knex: `people.cfp_faculty_teaching_prefs` (teaching
-  preferences) and `committees.members` (the committee matrix's storage —
-  the old parallel `cfp_committee_catalog`/`cfp_committee_assignment` tables
-  are retired). All other university tables (`committees.committees`,
+  preferences) and `committees.members` (the committee matrix's storage — the
+  old parallel `cfp_committee_assignment` table is retired, while
+  `cfp_committee_catalog` lives on as the matrix's column-metadata overlay).
+  All other university tables (`committees.committees`,
   `people.*`, `ps_rpt.*`, `dce.*`, the pre-existing `cfp_faculty`) are
   read-only by ground rule.
 - **Identity bridge** — course plans key on `person_number`; committee
@@ -167,12 +168,23 @@ mysql $T < db/seed/test_faculty_unseed.sql
 # 3. Widen people.cfp_faculty_teaching_prefs.pref CHECK from 0–4 to 0–5
 #    (the UI/API rating scale is 0..5 — 0 = Not Qualified).
 mysql $T < db/migration/widen_teaching_pref_check.sql
-# 4. Seed five test faculty across every table the portal reads/edits.
-mysql $T < db/seed/test_faculty_seed.sql
-# 5. (Re-runnable) seed the five leadership "Roles" matrix columns into
+# 4. (Re-runnable) seed the five leadership "Roles" matrix columns into
 #    committees.committees (cms_display=0) so their marks can be stored in
 #    committees.members with every other matrix cell.
+#    MUST precede the seed — step 5 resolves those columns by name.
 mysql $T < db/migration/seed_leadership_committees.sql
+# 5. Seed five test faculty across every table the portal reads/edits.
+mysql $T < db/seed/test_faculty_seed.sql
+```
+
+On a database seeded before the committee-matrix rewrite, the leadership
+holders are still stranded in the retired `cfp_committee_assignment`, so the
+matrix's leadership row renders empty. Move them across once — review the
+names first, since on oceanus they came from the seed rather than the
+department:
+
+```bash
+mysql $T < db/migration/backfill_leadership_members.sql
 ```
 
 > Collation note for any new cross-schema script: oceanus' server default is

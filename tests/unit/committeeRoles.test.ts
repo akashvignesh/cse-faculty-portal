@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWED_MEMBER_ROLES,
   dbRoleToUiCode,
+  isEquivalentLegacyRole,
   uiCodeToDbRole,
   type MatrixCellCode,
 } from "@/lib/committeeRoles";
@@ -46,5 +47,36 @@ describe("committeeRoles", () => {
   it("returns an empty cell for missing roles", () => {
     expect(dbRoleToUiCode(null, "committee")).toBe("");
     expect(dbRoleToUiCode("  ", "role")).toBe("");
+  });
+});
+
+describe("isEquivalentLegacyRole", () => {
+  it("protects Co-Chair from being flattened into Chair", () => {
+    // The live table holds 4 of these (GAC and UGAC); "Chair" is the only
+    // writable role the C cell can produce.
+    expect(isEquivalentLegacyRole("Co-Chair", "Chair")).toBe(true);
+  });
+
+  it("still allows a genuine cell change away from the legacy value", () => {
+    expect(isEquivalentLegacyRole("Co-Chair", "Member")).toBe(false);
+    expect(isEquivalentLegacyRole("Co-Chair", "Vice Chair")).toBe(false);
+  });
+
+  it("keeps an unknown legacy role that already reads as Member", () => {
+    expect(isEquivalentLegacyRole("Recorder", "Member")).toBe(true);
+    expect(isEquivalentLegacyRole("Recorder", "Chair")).toBe(false);
+  });
+
+  it("never blocks a write when the stored role is one the portal owns", () => {
+    for (const role of ALLOWED_MEMBER_ROLES) {
+      expect(isEquivalentLegacyRole(role, "Chair")).toBe(false);
+      expect(isEquivalentLegacyRole(role, "Member")).toBe(false);
+    }
+  });
+
+  it("ignores empty or missing stored roles", () => {
+    expect(isEquivalentLegacyRole(null, "Member")).toBe(false);
+    expect(isEquivalentLegacyRole("", "Member")).toBe(false);
+    expect(isEquivalentLegacyRole("   ", "Member")).toBe(false);
   });
 });

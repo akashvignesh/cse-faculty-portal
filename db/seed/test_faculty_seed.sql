@@ -7,7 +7,10 @@
 -- keys in test_faculty_unseed.sql. This script ONLY INSERTs.
 --
 -- LEVERAGES (reads, never writes/deletes) existing real data:
---   committees.committees / committees.members  → Committee tab (by userid)
+--   committees.committees                        → committee names/columns
+--   committees.members                           → Committee tab (by userid);
+--     step 13 ADDS editor='SEEDTEST' leadership rows here (removed by the
+--     unseed), but never modifies or deletes a real membership row
 --   ps_rpt.classschedule_v                       → Teaching History (by person_number)
 --   ps_rpt.ps_course_catalog_v                   → course names for prefs
 -- The 5 person_numbers below were chosen because they already have rows in
@@ -221,17 +224,36 @@ VALUES
   ((SELECT course_plan_id FROM ubs_emp.cfp_faculty_course_plan WHERE person_number='37912425' AND academic_year='2025-2026'),'fall','Not Teaching','Course Buyout','SEEDTEST',NOW()),
   ((SELECT course_plan_id FROM ubs_emp.cfp_faculty_course_plan WHERE person_number='37912425' AND academic_year='2025-2026'),'spring','Teaching','Regular','SEEDTEST',NOW());
 
--- ── 13. Committee assignments (ubs_emp.cfp_committee_assignment) for 2025-2026.
---      Targets the 5 leadership rows the change script always seeds into
---      cfp_committee_catalog (resolved by name). role_code 'P' = Position holder. ──
-INSERT INTO ubs_emp.cfp_committee_assignment
-  (catalog_id, userid, role_code, academic_year, editor, dt)
-VALUES
-  ((SELECT catalog_id FROM ubs_emp.cfp_committee_catalog WHERE name='Chair'),               'alphonce','P','2025-2026','SEEDTEST',NOW()),
-  ((SELECT catalog_id FROM ubs_emp.cfp_committee_catalog WHERE name='Associate Chair'),     'kdantu',  'P','2025-2026','SEEDTEST',NOW()),
-  ((SELECT catalog_id FROM ubs_emp.cfp_committee_catalog WHERE name='DGS, DGA, DUS'),       'chandola','P','2025-2026','SEEDTEST',NOW()),
-  ((SELECT catalog_id FROM ubs_emp.cfp_committee_catalog WHERE name='Director of Research'),'changyou','P','2025-2026','SEEDTEST',NOW()),
-  ((SELECT catalog_id FROM ubs_emp.cfp_committee_catalog WHERE name='Center Director'),     'eblanton','P','2025-2026','SEEDTEST',NOW());
+-- ── 13. Leadership position holders (committees.members).
+--      The matrix reads committees.members for BOTH committee cells and the
+--      leadership "Roles" columns — cfp_committee_assignment is retired, so
+--      seeding it here would be invisible to the app. The five leadership
+--      columns are the committees.committees rows created by
+--      db/migration/seed_leadership_committees.sql (cms_display = 0).
+--      role='Position' is the matrix's X mark (src/lib/committeeRoles.ts).
+--
+--      committees.committees.name is latin1 and committees.members.userid is
+--      utf8 — CONVERT() before comparing with the utf8mb4 literals below, or
+--      MySQL raises "illegal mix of collations".
+--
+--      NOT EXISTS guard: committees.members is UNIQUE (committee_id, userid)
+--      and holds real departmental rows; never collide with one. ──
+INSERT INTO committees.members (committee_id, userid, role, editor, dt)
+SELECT c.id, s.userid, 'Position', 'SEEDTEST', NOW()
+FROM (
+  SELECT 'Chair'                AS committee, 'alphonce' AS userid UNION ALL
+  SELECT 'Associate Chair',     'kdantu'   UNION ALL
+  SELECT 'DGS, DGA, DUS',       'chandola' UNION ALL
+  SELECT 'Director of Research','changyou' UNION ALL
+  SELECT 'Center Director',     'eblanton'
+) AS s
+JOIN committees.committees c
+  ON CONVERT(c.name USING utf8mb4) = s.committee
+WHERE NOT EXISTS (
+  SELECT 1 FROM committees.members m
+  WHERE m.committee_id = c.id
+    AND CONVERT(m.userid USING utf8mb4) = s.userid
+);
 
 -- ── 14. Per-faculty committee service summary (ubs_emp.cfp_committee_service_summary). ──
 INSERT INTO ubs_emp.cfp_committee_service_summary

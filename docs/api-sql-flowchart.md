@@ -194,4 +194,6 @@ Join/filter keys and the charset each table lives in (drives the `CONVERT(… US
 
 > Only three FKs are declared DB-side (`committees.members → committees`, `cfp_faculty_semester_plan → cfp_faculty_course_plan`, `cfp_course_area_tag → cfp_area_tag_master`); everything else is a join convention.
 >
-> **In the ER model but not in any flow** (no endpoint queries them): `ps_rpt.ps_class_capacity_v` (no enrollment-capacity feature) and `cfp_faculty_primary_phone_number` / `cfp_teaching_reductions` (fetched-but-never-rendered, since removed). They exist in the schema export but are intentionally untouched by the app.
+> **In the ER model but not in any flow** (no endpoint queries them): `ps_rpt.ps_class_capacity_v` (no enrollment-capacity feature), `cfp_teaching_reductions` (no reductions tab), `cfp_documents` (CV blobs — `cfp_faculty.cv_document_id` points at it, but nothing serves them), `cfp_faculty_load_balance` and `active_employee_directory` (upstream-owned), and `cfp_committee_assignment` (retired by the committee-matrix rewrite; still holds 184 stale rows). They exist in the schema export but are intentionally untouched by the app.
+>
+> `cfp_faculty_primary_phone_number` **is** in the flow again — the profile editor reads and writes it (`src/server/queries/profile.ts`, `PATCH /api/v1/faculty/[id]/profile`).

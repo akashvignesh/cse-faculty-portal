@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { ApiError, withErrorHandler } from "@/lib/api/errors";
 import { requirePermission } from "@/lib/api/guard";
 import { getSession } from "@/lib/auth";
-import { ALLOWED_MEMBER_ROLES } from "@/lib/committeeRoles";
+import { ALLOWED_MEMBER_ROLES, isEquivalentLegacyRole } from "@/lib/committeeRoles";
 import { getDb } from "@/lib/db";
 import { parseEditorBody } from "@/lib/editor/body";
 import { nowDateTime } from "@/lib/editor/factory";
@@ -158,11 +158,16 @@ export const POST = withErrorHandler(async (request: Request) => {
     const savedRows: MemberRow[] = [];
     for (const row of clean) {
       // Upsert on the (committee_id, userid) unique key so a concurrent or
-      // pre-existing membership row is updated rather than erroring.
+      // pre-existing membership row is updated rather than erroring. A legacy
+      // role that already displays as the submitted code is left alone.
+      const existing = (await db(MEMBERS)
+        .where({ committee_id: row.committee_id, userid: row.userid })
+        .first("role")) as { role: string | null } | undefined;
+      const keepStoredRole = isEquivalentLegacyRole(existing?.role, row.role);
       await db(MEMBERS)
         .insert({ ...row, ...audit })
         .onConflict(["committee_id", "userid"])
-        .merge({ role: row.role, ...audit });
+        .merge(keepStoredRole ? { ...audit } : { role: row.role, ...audit });
       const saved = (await memberQuery()
         .where("m.committee_id", row.committee_id)
         .where("m.userid", row.userid)
@@ -186,9 +191,20 @@ export const POST = withErrorHandler(async (request: Request) => {
 
     const savedRows: MemberRow[] = [];
     for (const { id, payload } of updates) {
+      // Don't flatten a legacy role (e.g. "Co-Chair") when the submitted code
+      // already displays as what is stored — see isEquivalentLegacyRole.
+      const next = { ...payload };
+      if (next.role !== undefined) {
+        const existing = (await db(MEMBERS).where("id", id).first("role")) as
+          | { role: string | null }
+          | undefined;
+        if (isEquivalentLegacyRole(existing?.role, next.role)) {
+          delete next.role;
+        }
+      }
       await db(MEMBERS)
         .where("id", id)
-        .update({ ...payload, ...audit });
+        .update({ ...next, ...audit });
       const saved = (await memberQuery().where("m.id", id).first()) as MemberRow | undefined;
       if (saved) savedRows.push(saved);
     }

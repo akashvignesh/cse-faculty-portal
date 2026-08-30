@@ -131,10 +131,13 @@ principal:
   → `campusOffice` = `"<building_name|bldabr> <room>"`. Note `occupants.userid`
   is a **principal**, not a person_number, so this fetch waits for query #2.
 
-> Removed (fetched-but-never-rendered): `cfp_faculty_primary_phone_number`
-> (no phone field in the UI) and `cfp_teaching_reductions` (no reductions tab).
-> Never queried at all: `ps_rpt.ps_class_capacity_v` (no enrollment-capacity
-> feature) — present in the DB/ER model but untouched by any endpoint.
+> `cfp_faculty_primary_phone_number` is back in use: the profile editor reads
+> and writes it (`src/server/queries/profile.ts`, `PATCH
+> /api/v1/faculty/[id]/profile`), alongside the email and address tables.
+> Removed (fetched-but-never-rendered): `cfp_teaching_reductions` (no
+> reductions tab). Never queried at all: `ps_rpt.ps_class_capacity_v` (no
+> enrollment-capacity feature) — present in the DB/ER model but untouched by
+> any endpoint.
 
 Live types for the columns this query selects (all `cfp_*` are `utf8mb4`):
 
@@ -387,7 +390,13 @@ then add it to the assembled return object → mapper → detail component
   X↔`Position` (any non-empty value displays as X); committee columns
   C↔`Chair`, V↔`Vice Chair`, R↔`Role`, M↔`Member` (unknown legacy values
   display as M). **Writable** — the committee matrix's storage table.
-  (`cfp_committee_catalog` / `cfp_committee_assignment` are retired.)
+  Live values include `Co-Chair` (4 rows, GAC/UGAC), which reads as C but is
+  outside `ALLOWED_MEMBER_ROLES`; `isEquivalentLegacyRole` keeps it from being
+  flattened to `Chair` when a chair edits the row.
+  (`cfp_committee_assignment` is retired — nothing reads or writes it.
+  `cfp_committee_catalog` is **not**: it remains the kind / service-category /
+  display-order overlay joined on `source_committee_id`, and
+  `/api/editor/committee-catalog` still writes it.)
 - `cfp_faculty_course_plan`: UNIQUE `(person_number, academic_year)`;
   `faculty_type` ENUM; `locked` gates all plan/slot writes.
 - `cfp_faculty_semester_plan`: FK → course_plan `ON DELETE CASCADE`;
