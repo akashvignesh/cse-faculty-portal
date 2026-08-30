@@ -1,5 +1,5 @@
 import "server-only";
-import { getDb } from "@/lib/db";
+import { getDb, writable } from "@/lib/db";
 import { BadRequestError, NotFoundError } from "@/lib/api/errors";
 import type { ProfilePatch } from "@/lib/api/profileSchema";
 import type { EditableProfile, EditableProfileAddress } from "@/server/data/types";
@@ -89,9 +89,11 @@ export async function saveFacultyProfile(
     if (patch.personalEmail !== undefined) {
       const value = patch.personalEmail.trim();
       if (value === "") {
-        await trx("cfp_faculty_primary_email").where("person_number", personNumber).delete();
+        await writable("cfp_faculty_primary_email", trx)
+          .where("person_number", personNumber)
+          .delete();
       } else {
-        await trx("cfp_faculty_primary_email")
+        await writable("cfp_faculty_primary_email", trx)
           .insert({ person_number: personNumber, email_address: value, editor, dt: now })
           .onConflict("person_number")
           .merge({ email_address: value, editor, dt: now });
@@ -101,11 +103,11 @@ export async function saveFacultyProfile(
     if (patch.phone !== undefined) {
       const value = patch.phone.trim();
       if (value === "") {
-        await trx("cfp_faculty_primary_phone_number")
+        await writable("cfp_faculty_primary_phone_number", trx)
           .where("person_number", personNumber)
           .delete();
       } else {
-        await trx("cfp_faculty_primary_phone_number")
+        await writable("cfp_faculty_primary_phone_number", trx)
           .insert({ person_number: personNumber, phone_number: value, editor, dt: now })
           .onConflict("person_number")
           .merge({ phone_number: value, editor, dt: now });
@@ -118,7 +120,9 @@ export async function saveFacultyProfile(
         (v) => v.trim() !== ""
       );
       if (!anyFilled) {
-        await trx("cfp_faculty_primary_address").where("person_number", personNumber).delete();
+        await writable("cfp_faculty_primary_address", trx)
+          .where("person_number", personNumber)
+          .delete();
       } else {
         const row = {
           person_number: personNumber,
@@ -131,7 +135,7 @@ export async function saveFacultyProfile(
           editor,
           dt: now,
         };
-        await trx("cfp_faculty_primary_address")
+        await writable("cfp_faculty_primary_address", trx)
           .insert(row)
           .onConflict("person_number")
           .merge({
@@ -170,13 +174,13 @@ export async function saveFacultyProfile(
       const toRemove = [...current].filter((id) => !requestedSet.has(id));
 
       if (toRemove.length > 0) {
-        await trx("cfp_faculty_research_areas")
+        await writable("cfp_faculty_research_areas", trx)
           .where("person_number", personNumber)
           .whereIn("research_area_id", toRemove)
           .delete();
       }
       if (toAdd.length > 0) {
-        await trx("cfp_faculty_research_areas").insert(
+        await writable("cfp_faculty_research_areas", trx).insert(
           toAdd.map((id) => ({
             person_number: personNumber,
             research_area_id: id,

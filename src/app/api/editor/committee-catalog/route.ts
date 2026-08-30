@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { ApiError, withErrorHandler } from "@/lib/api/errors";
 import { requirePermission } from "@/lib/api/guard";
 import { getSession } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb, writable } from "@/lib/db";
 import { parseEditorBody } from "@/lib/editor/body";
 import { nowDateTime } from "@/lib/editor/factory";
 import { isDbMode } from "@/lib/env";
@@ -194,7 +194,7 @@ export const POST = withErrorHandler(async (request: Request) => {
 
     const savedRows: CatalogRow[] = [];
     for (const [index, row] of clean.entries()) {
-      const [insertedId] = await db(COMMITTEES).insert({
+      const [insertedId] = await writable(COMMITTEES).insert({
         ub_ent_abbr: "CSE",
         name: row.name,
         // Leadership "columns" are matrix constructs, not public committees.
@@ -205,7 +205,7 @@ export const POST = withErrorHandler(async (request: Request) => {
       if (!Number.isInteger(committeeId) || committeeId <= 0) {
         throw new ApiError(500, "Insert did not return a committee id");
       }
-      await db(OVERLAY).insert({
+      await writable(OVERLAY).insert({
         source_committee_id: committeeId,
         name: row.name,
         kind: row.kind,
@@ -230,7 +230,7 @@ export const POST = withErrorHandler(async (request: Request) => {
       if (fieldErrors.length > 0) return NextResponse.json({ data: [], fieldErrors });
 
       if (payload.name !== undefined) {
-        await db(COMMITTEES)
+        await writable(COMMITTEES)
           .where("id", id)
           .update({ name: payload.name, ...audit });
       }
@@ -241,7 +241,7 @@ export const POST = withErrorHandler(async (request: Request) => {
         overlayFields.service_category = payload.service_category;
       }
       if (Object.keys(overlayFields).length > 0) {
-        const updated = await db(OVERLAY)
+        const updated = await writable(OVERLAY)
           .where("source_committee_id", id)
           .update({ ...overlayFields, ...audit });
         if (updated === 0) {
@@ -251,7 +251,7 @@ export const POST = withErrorHandler(async (request: Request) => {
             | undefined;
           if (!current) throw new ApiError(404, `Committee not found: ${id}`);
           const kind = (payload.kind ?? "committee") as CommitteeKind;
-          await db(OVERLAY).insert({
+          await writable(OVERLAY).insert({
             source_committee_id: id,
             name: payload.name ?? current.name,
             kind,
@@ -273,13 +273,13 @@ export const POST = withErrorHandler(async (request: Request) => {
       throw new ApiError(400, "Invalid row id in remove request");
     }
     // Children first: assignments, then the overlay, then the committee row.
-    await db(MEMBERS)
+    await writable(MEMBERS)
       .whereIn("committee_id", ids as number[])
       .delete();
-    await db(OVERLAY)
+    await writable(OVERLAY)
       .whereIn("source_committee_id", ids as number[])
       .delete();
-    await db(COMMITTEES)
+    await writable(COMMITTEES)
       .whereIn("id", ids as number[])
       .delete();
     return NextResponse.json({ data: [] });

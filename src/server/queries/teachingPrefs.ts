@@ -1,5 +1,5 @@
 import "server-only";
-import { getDb } from "@/lib/db";
+import { getDb, writable } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { BadRequestError, ConflictError, NotFoundError } from "@/lib/api/errors";
 import type {
@@ -176,7 +176,7 @@ export async function saveTeachingPreferences(
     const pref = validatePref(item.pref, courseName);
     const catalogCourse = await resolveCatalogCourse(courseName);
 
-    const keyed = db(PREFS_TABLE)
+    const keyed = writable(PREFS_TABLE)
       .where("userid", userid)
       .where("crse_id", catalogCourse.courseId)
       .modify((query) => {
@@ -196,7 +196,7 @@ export async function saveTeachingPreferences(
       if (updated > 0) {
         action = "UPDATED";
       } else {
-        await db(PREFS_TABLE).insert({
+        await writable(PREFS_TABLE).insert({
           userid,
           crse_id: catalogCourse.courseId,
           term_code: termCode,

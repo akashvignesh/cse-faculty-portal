@@ -2,7 +2,7 @@ import "server-only";
 import Editor, { Field } from "datatables.net-editor-server";
 import { ApiError } from "@/lib/api/errors";
 import { getSession, type Session } from "@/lib/auth";
-import { getDb, WRITABLE_TABLES } from "@/lib/db";
+import { assertWritable, getDb } from "@/lib/db";
 import { isDbMode } from "@/lib/env";
 import { rbacValidator, type EditorRbacDescriptor } from "./rbac";
 
@@ -24,9 +24,7 @@ export async function createEditor(
       "Editable features require FACULTY_DATA_MODE=db (local mock mode has no persistence)."
     );
   }
-  if (!WRITABLE_TABLES.has(table)) {
-    throw new ApiError(500, `Table is not editable: ${table}`);
-  }
+  assertWritable(table);
   const session = await getSession();
   const editor = new Editor(getDb(), table, pkey);
   editor.validator(rbacValidator(session, table, pkey, rbac));

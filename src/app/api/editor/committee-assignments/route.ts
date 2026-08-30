@@ -6,7 +6,7 @@ import { ApiError, withErrorHandler } from "@/lib/api/errors";
 import { requirePermission } from "@/lib/api/guard";
 import { getSession } from "@/lib/auth";
 import { ALLOWED_MEMBER_ROLES, isEquivalentLegacyRole } from "@/lib/committeeRoles";
-import { getDb } from "@/lib/db";
+import { getDb, writable } from "@/lib/db";
 import { parseEditorBody } from "@/lib/editor/body";
 import { nowDateTime } from "@/lib/editor/factory";
 import { isDbMode } from "@/lib/env";
@@ -164,7 +164,7 @@ export const POST = withErrorHandler(async (request: Request) => {
         .where({ committee_id: row.committee_id, userid: row.userid })
         .first("role")) as { role: string | null } | undefined;
       const keepStoredRole = isEquivalentLegacyRole(existing?.role, row.role);
-      await db(MEMBERS)
+      await writable(MEMBERS)
         .insert({ ...row, ...audit })
         .onConflict(["committee_id", "userid"])
         .merge(keepStoredRole ? { ...audit } : { role: row.role, ...audit });
@@ -202,7 +202,7 @@ export const POST = withErrorHandler(async (request: Request) => {
           delete next.role;
         }
       }
-      await db(MEMBERS)
+      await writable(MEMBERS)
         .where("id", id)
         .update({ ...next, ...audit });
       const saved = (await memberQuery().where("m.id", id).first()) as MemberRow | undefined;
@@ -216,7 +216,7 @@ export const POST = withErrorHandler(async (request: Request) => {
     if (ids.some((id) => id === null)) {
       throw new ApiError(400, "Invalid row id in remove request");
     }
-    await db(MEMBERS)
+    await writable(MEMBERS)
       .whereIn("id", ids as number[])
       .delete();
     return NextResponse.json({ data: [] });

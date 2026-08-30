@@ -113,18 +113,24 @@ src/
 
 Key invariants:
 
-- **Write allowlist** — only eight `ubs_emp.cfp_*` tables are writable through
-  the Editor protocol (the `WRITABLE_TABLES` set in `src/lib/db.ts`, enforced
-  in `src/lib/editor/factory.ts`): course/semester plan, faculty role, service
-  categories/summary, the two area-tag tables, plus the pre-existing
-  `cfp_faculty_leave`, which the leave editor writes. Two cross-schema tables
-  accept DML via plain knex: `people.cfp_faculty_teaching_prefs` (teaching
-  preferences) and `committees.members` (the committee matrix's storage — the
-  old parallel `cfp_committee_assignment` table is retired, while
-  `cfp_committee_catalog` lives on as the matrix's column-metadata overlay).
-  All other university tables (`committees.committees`,
-  `people.*`, `ps_rpt.*`, `dce.*`, the pre-existing `cfp_faculty`) are
-  read-only by ground rule.
+- **Write allowlist** — `WRITABLE_TABLES` in `src/lib/db.ts` is the single
+  source of truth for every table the app may write, whichever path performs
+  the write. Both paths go through it: the Editor factory calls
+  `assertWritable()`, and the hand-rolled knex routes and query modules build
+  their statements with `writable(table[, trx])`. Reads may use `getDb()`
+  directly. The list covers the nine Editor tables (course/semester plan,
+  faculty role, service categories/summary, the two area-tag tables,
+  `cfp_user_role`, and the pre-existing `cfp_faculty_leave`), the four contact
+  tables the profile editor writes, and three cross-schema tables:
+  `people.cfp_faculty_teaching_prefs`, `committees.members` (the committee
+  matrix's storage) and `committees.committees` (its column list — the catalog
+  route creates, renames and **hard-deletes** committees, cascading through
+  `members`, so this is a real exception to "committees.\* is upstream data").
+  `cfp_committee_assignment` is retired; `cfp_committee_catalog` lives on as
+  the matrix's column-metadata overlay. Everything else (`people.*`,
+  `ps_rpt.*`, `dce.*`, `ubs_rf.*`, the pre-existing `cfp_faculty`) is
+  read-only by ground rule — `tests/unit/writableTables.test.ts` pins the list
+  so it cannot drift again.
 - **Identity bridge** — course plans key on `person_number`; committee
   assignments and teaching preferences key on `userid`. `dce.person_number`
   maps between them (`src/server/queries/identity.ts`). API routes accept
