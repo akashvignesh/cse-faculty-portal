@@ -63,7 +63,7 @@ flowchart LR
     t_leave["cfp_faculty_leave (read + edit)"]
     t_role["cfp_faculty_role"]
     t_tags["cfp_area_tag_master + cfp_course_area_tag"]
-    t_edTables["cfp_committee_* / cfp_faculty_course_plan / _semester_plan / _service_*"]
+    t_edTables["cfp_committee_service_summary / cfp_faculty_course_plan / _semester_plan / cfp_service_categories"]
   end
   subgraph T_other["cross-schema reads"]
     t_name["ps_rpt.ub_display_name_v"]
@@ -72,7 +72,7 @@ flowchart LR
     t_cat["ps_rpt.ps_course_catalog_v"]
     t_adv["people.phd_advisors"]
     t_prefs["people.cfp_faculty_teaching_prefs"]
-    t_comm["committees.committees + members"]
+    t_comm["committees.committees + members (matrix read + write)"]
     t_photo["sunycard.cfp_cse_faculty_photos_v"]
     t_office["facilities.occupants ⋈ buildings"]
     t_award["ubs_rf.award_v"]
@@ -157,7 +157,7 @@ flowchart TD
 | `POST /faculty/[id]/teaching-preferences` | Saving course preferences | `people.cfp_faculty_teaching_prefs` (DELETE/UPDATE/INSERT) + catalog lookup |
 | `GET /committees/memberships` | Committee tab | `committees.committees` ⋈ `committees.members` |
 | `GET /courses/active` | Course dropdown + preference grid (planner); course picker (`/course-tags`) | `ps_course_catalog_v` (latest active per crse_id) |
-| `/api/editor/*` (10 routes) | Committee-matrix, course-planner, leave, role & area-tag edits | `cfp_committee_catalog`, `cfp_committee_assignment`, `cfp_committee_service_summary`, `cfp_faculty_course_plan`, `cfp_faculty_semester_plan`, `cfp_faculty_role`, `cfp_faculty_leave`, `cfp_area_tag_master`, `cfp_course_area_tag`, `cfp_service_categories` |
+| `/api/editor/*` (10 routes) | Committee-matrix, course-planner, leave, role & area-tag edits | `committees.committees` (matrix columns, read-only), `committees.members` (matrix cells, read + write), `cfp_committee_service_summary`, `cfp_faculty_course_plan`, `cfp_faculty_semester_plan`, `cfp_faculty_role`, `cfp_faculty_leave`, `cfp_area_tag_master`, `cfp_course_area_tag`, `cfp_service_categories` |
 
 > Mock mode: every read path above has a no-SQL twin in `server/mocks` selected by
 > `FACULTY_DATA_MODE`; the diagram shows the **db** branch.
@@ -178,7 +178,6 @@ Join/filter keys and the charset each table lives in (drives the `CONVERT(… US
 | `ubs_emp.cfp_faculty_role` | utf8mb4 | `role_id` | UNIQUE `(person_number, academic_year, role)`; `role` ∈ `ALL_ROLES` |
 | `ubs_emp.cfp_area_tag_master` | utf8mb4 | `tag_id` | UNIQUE `name` (AI/Systems/PL/Theory/Special Topics) |
 | `ubs_emp.cfp_course_area_tag` | utf8mb4 | `course_area_tag_id` | UNIQUE `(crse_id, tag_id)`; FK `tag_id → cfp_area_tag_master` (CASCADE) |
-| `ubs_emp.cfp_committee_assignment` | utf8mb4 | `assignment_id` | FK `catalog_id → cfp_committee_catalog`; `userid`, `academic_year` |
 | `ubs_emp.cfp_faculty_semester_plan` | utf8mb4 | `semester_plan_id` | FK `course_plan_id → cfp_faculty_course_plan` (CASCADE) |
 | `dce.person_number` | latin1 | `(person_number, principal)` | id bridge: `person_number ↔ principal` |
 | `ps_rpt.ub_display_name_v` | latin1 | `emplid` | `emplid = person_number` → `name_display` |
@@ -187,12 +186,14 @@ Join/filter keys and the charset each table lives in (drives the `CONVERT(… US
 | `people.cfp_faculty_teaching_prefs` | utf8 | `id` | upsert key `(userid, crse_id, term_code)` |
 | `people.phd_advisors` | latin1 | `id` | `advisor = userid AND active = 1` |
 | `committees.committees` | latin1/utf8 | `id` | `name` UNIQUE |
-| `committees.members` | utf8 | `id` | FK `committee_id → committees.id`; `userid` |
+| `committees.members` | utf8 | `id` | FK `committee_id → committees.id`; UNIQUE `(committee_id, userid)`; matrix storage (read + write, plain knex) |
 | `sunycard.cfp_cse_faculty_photos_v` | utf8mb4 | `person_number` | `person_number` / `principal` → `image` (mediumblob) |
 | `facilities.occupants` | latin1 | `id` | `userid = principal`; `bldabr → buildings` → campus office |
 | `facilities.buildings` | latin1 | `building` | `building_abbr = occupants.bldabr` → `building_name` |
 | `ubs_rf.award_v` | utf8mb4 | `award_number` | `person_number` → awards (`award_number`, `title`, `award_start`) |
 
-> Only four FKs are declared DB-side (`committees.members → committees`, `cfp_committee_assignment → cfp_committee_catalog`, `cfp_faculty_semester_plan → cfp_faculty_course_plan`, `cfp_course_area_tag → cfp_area_tag_master`); everything else is a join convention.
+> Only three FKs are declared DB-side (`committees.members → committees`, `cfp_faculty_semester_plan → cfp_faculty_course_plan`, `cfp_course_area_tag → cfp_area_tag_master`); everything else is a join convention.
 >
-> **In the ER model but not in any flow** (no endpoint queries them): `ps_rpt.ps_class_capacity_v` (no enrollment-capacity feature) and `cfp_faculty_primary_phone_number` / `cfp_teaching_reductions` (fetched-but-never-rendered, since removed). They exist in the schema export but are intentionally untouched by the app.
+> **In the ER model but not in any flow** (no endpoint queries them): `ps_rpt.ps_class_capacity_v` (no enrollment-capacity feature), `cfp_teaching_reductions` (no reductions tab), `cfp_documents` (CV blobs — `cfp_faculty.cv_document_id` points at it, but nothing serves them), `cfp_faculty_load_balance` and `active_employee_directory` (upstream-owned), and `cfp_committee_assignment` (retired by the committee-matrix rewrite; still holds 184 stale rows). They exist in the schema export but are intentionally untouched by the app.
+>
+> `cfp_faculty_primary_phone_number` **is** in the flow again — the profile editor reads and writes it (`src/server/queries/profile.ts`, `PATCH /api/v1/faculty/[id]/profile`).

@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePermission } from "@/components/auth/AuthProvider";
 import { APP_TITLE } from "@/config/appConfig";
 import { displayValue } from "@/lib/format";
 import DetailSidebar from "./DetailSidebar";
 import FacultyAboutCard from "./FacultyAboutCard";
 import FacultySummaryCard from "./FacultySummaryCard";
 import FacultyTabNav, { DETAIL_TABS, type DetailTab } from "./FacultyTabNav";
+import ProfileChangeReview from "./ProfileChangeReview";
 import { useFacultyDetail } from "./useFacultyDetail";
+import { useProfileEdit } from "./useProfileEdit";
 import AwardsTab from "./tabs/AwardsTab";
 import CommitteeTab from "./tabs/CommitteeTab";
 import CoursePreferenceTab from "./tabs/CoursePreferenceTab";
@@ -18,8 +21,16 @@ import StudentsTab from "./tabs/StudentsTab";
 import TeachingHistoryTab from "./tabs/TeachingHistoryTab";
 
 export default function FacultyDetailView({ userid }: { userid: string }) {
-  const { faculty, isLoading, errorMessage, notFound, ensureSection } = useFacultyDetail(userid);
+  const { faculty, isLoading, errorMessage, notFound, ensureSection, reload } =
+    useFacultyDetail(userid);
+  const { canEditResource } = usePermission();
+  const profileEdit = useProfileEdit(faculty?.userid || userid, reload);
   const [activeTab, setActiveTab] = useState<DetailTab>(DETAIL_TABS.RESEARCH_AREA);
+
+  // Chair/staff see Edit on any profile; faculty only on their own; viewer never.
+  const canEditProfile = faculty
+    ? canEditResource("profile", faculty.userid) !== "none"
+    : false;
 
   useEffect(() => {
     document.title = faculty ? `${faculty.name} | ${APP_TITLE}` : `Faculty Detail | ${APP_TITLE}`;
@@ -49,7 +60,7 @@ export default function FacultyDetailView({ userid }: { userid: string }) {
       case DETAIL_TABS.COURSE_PREFERENCE:
         return <CoursePreferenceTab faculty={faculty} />;
       case DETAIL_TABS.LEAVE:
-        return <LeaveTab faculty={faculty} />;
+        return <LeaveTab faculty={faculty} editing={profileEdit.isEditing} />;
       case DETAIL_TABS.COMMITTEE:
         return <CommitteeTab faculty={faculty} />;
       case DETAIL_TABS.AWARDS:
@@ -58,7 +69,7 @@ export default function FacultyDetailView({ userid }: { userid: string }) {
         return <StudentsTab faculty={faculty} />;
       case DETAIL_TABS.RESEARCH_AREA:
       default:
-        return <ResearchTab faculty={faculty} />;
+        return <ResearchTab faculty={faculty} profileEdit={profileEdit} />;
     }
   }
 
@@ -101,8 +112,13 @@ export default function FacultyDetailView({ userid }: { userid: string }) {
                   </nav>
                 </section>
 
-                <FacultySummaryCard faculty={faculty} />
-                <FacultyAboutCard faculty={faculty} />
+                <ProfileChangeReview profileEdit={profileEdit} />
+                <FacultySummaryCard
+                  faculty={faculty}
+                  profileEdit={profileEdit}
+                  canEditProfile={canEditProfile}
+                />
+                <FacultyAboutCard faculty={faculty} profileEdit={profileEdit} />
 
                 <section className="faculty-secondary-card">
                   <FacultyTabNav activeTab={activeTab} onSelect={handleTabSelect} />

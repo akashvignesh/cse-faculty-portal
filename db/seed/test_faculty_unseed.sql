@@ -3,9 +3,11 @@
 -- Target: MySQL 8 (oceanus). Run via the 3307 tunnel.
 --
 -- SAFETY: removes rows by editor='SEEDTEST' (where the table has that column)
--- or by the explicit keys this seed owns. It NEVER touches committees.*,
--- ps_rpt.classschedule_v, or ps_rpt.ps_course_catalog_v — that real data is
--- only read for mapping, never deleted.
+-- or by the explicit keys this seed owns. The only committees.* rows it removes
+-- are the seed's own editor='SEEDTEST' leadership memberships; real membership
+-- rows (authored by a person's userid) and committees.committees are untouched,
+-- as are ps_rpt.classschedule_v and ps_rpt.ps_course_catalog_v — that real data
+-- is only read for mapping, never deleted.
 -- =============================================================================
 
 -- editor='SEEDTEST'-tagged tables
@@ -15,6 +17,10 @@ DELETE FROM ubs_emp.cfp_faculty_course_plan        WHERE editor = 'SEEDTEST';
 DELETE FROM ubs_emp.cfp_faculty_role               WHERE editor = 'SEEDTEST';
 DELETE FROM ubs_emp.cfp_course_area_tag            WHERE editor = 'SEEDTEST';
 DELETE FROM ubs_emp.cfp_committee_assignment       WHERE editor = 'SEEDTEST';
+-- Leadership position holders the seed writes into the live membership table.
+-- Scoped to editor='SEEDTEST': real rows carry a person's userid as editor, and
+-- the leadership-column backfill uses 'BACKFILL', so neither is touched.
+DELETE FROM committees.members                     WHERE editor = 'SEEDTEST';
 DELETE FROM ubs_emp.cfp_committee_service_summary  WHERE editor = 'SEEDTEST';
 DELETE FROM ubs_emp.cfp_appointments               WHERE editor = 'SEEDTEST';
 DELETE FROM ubs_emp.cfp_faculty                     WHERE editor = 'SEEDTEST';

@@ -45,8 +45,11 @@ describe("getComputedAnnualLoad", () => {
     expect(getComputedAnnualLoad("Lecture 10", ["Director of Admissions"])).toBe(5);
   });
 
+  it("gives Associate Chair a one-course reduction", () => {
+    expect(getComputedAnnualLoad("Lecture 10", ["Associate Chair"])).toBe(5);
+  });
+
   it("applies no reduction for roles the PDF leaves unreduced", () => {
-    expect(getComputedAnnualLoad("Lecture 10", ["Associate Chair"])).toBe(6);
     expect(getComputedAnnualLoad("Lecture 10", ["Director of Research"])).toBe(6);
     expect(getComputedAnnualLoad("Lecture 10", ["Center Director"])).toBe(6);
   });
@@ -66,7 +69,7 @@ describe("legacy load helpers stay consistent with getComputedAnnualLoad", () =>
   it("getRoleAdjustment returns the summed release", () => {
     expect(getRoleAdjustment(["Chair"])).toBe(2.5);
     expect(getRoleAdjustment(["Director of Graduate Studies", "Director of Admissions"])).toBe(2);
-    expect(getRoleAdjustment(["Associate Chair"])).toBe(0);
+    expect(getRoleAdjustment(["Associate Chair"])).toBe(1);
   });
 
   it("getAdjustedLoad(default, getRoleAdjustment(roles)) equals getComputedAnnualLoad", () => {

@@ -10,8 +10,12 @@ import { academicYearValidator, auditFields, createEditor } from "@/lib/editor/f
 
 const TABLE = "cfp_faculty_role";
 
-function buildEditor(): Editor {
-  return createEditor(TABLE, "role_id").fields(
+async function buildEditor(): Promise<Editor> {
+  const { editor, session } = await createEditor(TABLE, "role_id", {
+    resource: "faculty-role",
+    ownership: "person_number",
+  });
+  return editor.fields(
     // Pkey as read-only field so GET rows are self-describing.
     new Field(`${TABLE}.role_id`).set(false),
     new Field(`${TABLE}.person_number`)
@@ -23,7 +27,7 @@ function buildEditor(): Editor {
     new Field(`${TABLE}.role`)
       .validator(Validate.notEmpty())
       .validator(Validate.values(ALL_ROLES)),
-    ...auditFields(TABLE)
+    ...auditFields(TABLE, session)
   );
 }
 
@@ -40,7 +44,7 @@ function applyFilters(editor: Editor, url: URL): void {
 
 /** GET /api/editor/faculty-role?person_number=...&academic_year=2025-2026 */
 export const GET = withErrorHandler(async (request: Request) => {
-  const editor = buildEditor();
+  const editor = await buildEditor();
   applyFilters(editor, new URL(request.url));
   await editor.process({});
   return NextResponse.json(editor.data());
@@ -49,7 +53,7 @@ export const GET = withErrorHandler(async (request: Request) => {
 /** POST /api/editor/faculty-role — Editor protocol create/edit/remove */
 export const POST = withErrorHandler(async (request: Request) => {
   const body = await parseEditorBody(request);
-  const editor = buildEditor();
+  const editor = await buildEditor();
   await editor.process(body);
   return NextResponse.json(editor.data());
 });

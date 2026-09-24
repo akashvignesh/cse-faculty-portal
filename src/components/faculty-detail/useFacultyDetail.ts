@@ -18,6 +18,8 @@ export interface FacultyDetailState {
   notFound: boolean;
   /** Fetches a section on first tab open if the detail record lacks it. */
   ensureSection: (section: LazySection) => void;
+  /** Re-fetches the whole detail record (e.g. after a profile save). */
+  reload: () => void;
 }
 
 export function useFacultyDetail(userid: string): FacultyDetailState {
@@ -25,6 +27,7 @@ export function useFacultyDetail(userid: string): FacultyDetailState {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [notFound, setNotFound] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const fetchedSections = useRef<Set<LazySection>>(new Set());
 
   useEffect(() => {
@@ -90,7 +93,9 @@ export function useFacultyDetail(userid: string): FacultyDetailState {
     return () => {
       isActive = false;
     };
-  }, [userid]);
+  }, [userid, reloadKey]);
+
+  const reload = useCallback(() => setReloadKey((key) => key + 1), []);
 
   const ensureSection = useCallback(
     (section: LazySection) => {
@@ -132,5 +137,5 @@ export function useFacultyDetail(userid: string): FacultyDetailState {
     [faculty]
   );
 
-  return { faculty, isLoading, errorMessage, notFound, ensureSection };
+  return { faculty, isLoading, errorMessage, notFound, ensureSection, reload };
 }

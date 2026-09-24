@@ -1,26 +1,34 @@
 import "server-only";
 import Editor, { Field } from "datatables.net-editor-server";
 import { ApiError } from "@/lib/api/errors";
-import { getCurrentUser } from "@/lib/auth";
-import { getDb, WRITABLE_TABLES } from "@/lib/db";
+import { getSession, type Session } from "@/lib/auth";
+import { assertWritable, getDb } from "@/lib/db";
 import { isDbMode } from "@/lib/env";
+import { rbacValidator, type EditorRbacDescriptor } from "./rbac";
 
 /**
  * Creates an Editor instance bound to one of the editable cfp_* tables.
  * Any table outside the allowlist is refused — university tables are
- * read-only by ground rule.
+ * read-only by ground rule. Every editor carries the RBAC validator for its
+ * resource (writes are permission-checked before they execute) and the
+ * session it was built for, so routes can stamp audit columns.
  */
-export function createEditor(table: string, pkey: string): Editor {
+export async function createEditor(
+  table: string,
+  pkey: string,
+  rbac: EditorRbacDescriptor
+): Promise<{ editor: Editor; session: Session }> {
   if (!isDbMode) {
     throw new ApiError(
       503,
       "Editable features require FACULTY_DATA_MODE=db (local mock mode has no persistence)."
     );
   }
-  if (!WRITABLE_TABLES.has(table)) {
-    throw new ApiError(500, `Table is not editable: ${table}`);
-  }
-  return new Editor(getDb(), table, pkey);
+  assertWritable(table);
+  const session = await getSession();
+  const editor = new Editor(getDb(), table, pkey);
+  editor.validator(rbacValidator(session, table, pkey, rbac));
+  return { editor, session };
 }
 
 /** "YYYY-MM-DD HH:mm:ss" in server-local time, for the cfp_* `dt` audit column. */
@@ -37,10 +45,9 @@ export function nowDateTime(): string {
  * Audit columns shared by every editable cfp_* table: `editor` (userid) and
  * `dt` (app-set timestamp). `ts` is DB-managed and never written.
  */
-export function auditFields(table: string): Field[] {
-  const user = getCurrentUser();
+export function auditFields(table: string, session: Session): Field[] {
   return [
-    new Field(`${table}.editor`).set(true).setValue(user.userid),
+    new Field(`${table}.editor`).set(true).setValue(session.userid),
     new Field(`${table}.dt`).set(true).setValue(nowDateTime()),
   ];
 }

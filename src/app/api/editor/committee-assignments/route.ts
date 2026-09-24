@@ -2,62 +2,225 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import Editor, { Field, Validate } from "datatables.net-editor-server";
-import { withErrorHandler } from "@/lib/api/errors";
+import { ApiError, withErrorHandler } from "@/lib/api/errors";
+import { requirePermission } from "@/lib/api/guard";
+import { getSession } from "@/lib/auth";
+import { ALLOWED_MEMBER_ROLES, isEquivalentLegacyRole } from "@/lib/committeeRoles";
+import { getDb, writable } from "@/lib/db";
 import { parseEditorBody } from "@/lib/editor/body";
-import { academicYearValidator, auditFields, createEditor } from "@/lib/editor/factory";
+import { nowDateTime } from "@/lib/editor/factory";
+import { isDbMode } from "@/lib/env";
 
-const TABLE = "cfp_committee_assignment";
-const CATALOG = "cfp_committee_catalog";
+// Committee assignments persist in committees.members — the canonical CSE
+// membership table (unique on committee_id + userid, audit editor/dt columns).
+// It lives outside the ubs_emp default schema, so like the teaching prefs it
+// is written with plain knex statements rather than the Editor library, while
+// still speaking the same wire protocol the browser-side helpers expect:
+//   GET  → { data: [{ DT_RowId, members: {…}, committees: { name } }] }
+//   POST → { action: create|edit|remove, data: { <rowId>: { members: {…} } } }
+const MEMBERS = "committees.members";
+const COMMITTEES = "committees.committees";
 
-/** P=Position holder, C=Chair, V=Vice-Chair, X=Member, A=Alternate. */
-const ROLE_CODES = ["P", "C", "V", "X", "A"];
-
-function buildEditor(): Editor {
-  return createEditor(TABLE, "assignment_id")
-    .fields(
-      // Pkey as read-only field so GET rows are self-describing.
-      new Field(`${TABLE}.assignment_id`).set(false),
-      new Field(`${TABLE}.catalog_id`).validator(Validate.notEmpty()).validator(Validate.numeric()),
-      new Field(`${TABLE}.userid`).validator(Validate.notEmpty()).validator(Validate.maxLen(8)),
-      new Field(`${TABLE}.role_code`)
-        .validator(Validate.notEmpty())
-        .validator(Validate.values(ROLE_CODES)),
-      new Field(`${TABLE}.academic_year`)
-        .validator(Validate.notEmpty())
-        .validator(academicYearValidator),
-      ...auditFields(TABLE),
-      // Read-only joined catalog columns for display.
-      new Field(`${CATALOG}.name`).set(false),
-      new Field(`${CATALOG}.kind`).set(false),
-      new Field(`${CATALOG}.service_category`).set(false)
-    )
-    .leftJoin(CATALOG, `${CATALOG}.catalog_id`, "=", `${TABLE}.catalog_id`);
+interface MemberRow {
+  id: number;
+  committee_id: number;
+  userid: string;
+  role: string | null;
+  committee_name: string | null;
 }
 
-function applyFilters(editor: Editor, url: URL): void {
-  const academicYear = url.searchParams.get("academic_year");
-  if (academicYear) {
-    editor.where(`${TABLE}.academic_year`, academicYear);
+interface FieldError {
+  name: string;
+  status: string;
+}
+
+function requireDbMode(): void {
+  if (!isDbMode) {
+    throw new ApiError(
+      503,
+      "Editable features require FACULTY_DATA_MODE=db (local mock mode has no persistence)."
+    );
   }
+}
+
+function memberQuery() {
+  return getDb()
+    .select("m.id", "m.committee_id", "m.userid", "m.role", "c.name as committee_name")
+    .from(`${MEMBERS} as m`)
+    .leftJoin(`${COMMITTEES} as c`, "c.id", "m.committee_id");
+}
+
+function toWireRow(row: MemberRow) {
+  return {
+    DT_RowId: `row_${row.id}`,
+    members: {
+      id: row.id,
+      committee_id: row.committee_id,
+      userid: row.userid,
+      role: row.role,
+    },
+    committees: { name: row.committee_name },
+  };
+}
+
+function fieldErrorResponse(fieldErrors: FieldError[]): NextResponse {
+  return NextResponse.json({ data: [], fieldErrors });
+}
+
+interface CreatePayload {
+  committee_id: number;
+  userid: string;
+  role: string;
+}
+
+/** Validates one submitted row; returns the clean payload or field errors. */
+function validateSubmittedRow(
+  raw: Record<string, unknown> | undefined,
+  requireAll: boolean
+): { payload: Partial<CreatePayload>; fieldErrors: FieldError[] } {
+  const fieldErrors: FieldError[] = [];
+  const payload: Partial<CreatePayload> = {};
+  const row = raw ?? {};
+
+  if (row.committee_id !== undefined || requireAll) {
+    const committeeId = Number(row.committee_id);
+    if (!Number.isInteger(committeeId) || committeeId <= 0) {
+      fieldErrors.push({
+        name: "members.committee_id",
+        status: "committee_id must be a positive integer",
+      });
+    } else {
+      payload.committee_id = committeeId;
+    }
+  }
+
+  if (row.userid !== undefined || requireAll) {
+    const userid = typeof row.userid === "string" ? row.userid.trim() : "";
+    if (!userid || userid.length > 8) {
+      fieldErrors.push({ name: "members.userid", status: "userid is required (max 8 characters)" });
+    } else {
+      payload.userid = userid;
+    }
+  }
+
+  if (row.role !== undefined || requireAll) {
+    const role = typeof row.role === "string" ? row.role.trim() : "";
+    if (!ALLOWED_MEMBER_ROLES.includes(role)) {
+      fieldErrors.push({
+        name: "members.role",
+        status: `role must be one of: ${ALLOWED_MEMBER_ROLES.join(", ")}`,
+      });
+    } else {
+      payload.role = role;
+    }
+  }
+
+  return { payload, fieldErrors };
+}
+
+function parseRowId(rowId: string): number | null {
+  const id = Number(rowId.replace(/^row_/, ""));
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** GET /api/editor/committee-assignments?userid= */
+export const GET = withErrorHandler(async (request: Request) => {
+  requireDbMode();
+  await requirePermission("committee:view"); // committee management is chair-only
+  const url = new URL(request.url);
+  const query = memberQuery();
   const userid = url.searchParams.get("userid");
   if (userid) {
-    editor.where(`${TABLE}.userid`, userid);
+    void query.where("m.userid", userid);
   }
-}
-
-/** GET /api/editor/committee-assignments?academic_year=2025-2026&userid= */
-export const GET = withErrorHandler(async (request: Request) => {
-  const editor = buildEditor();
-  applyFilters(editor, new URL(request.url));
-  await editor.process({});
-  return NextResponse.json(editor.data());
+  const rows = (await query.orderBy("m.id", "asc")) as MemberRow[];
+  return NextResponse.json({ data: rows.map(toWireRow) });
 });
 
 /** POST /api/editor/committee-assignments — Editor protocol create/edit/remove */
 export const POST = withErrorHandler(async (request: Request) => {
+  requireDbMode();
+  await requirePermission("committee-assignment:edit"); // chair-only
   const body = await parseEditorBody(request);
-  const editor = buildEditor();
-  await editor.process(body);
-  return NextResponse.json(editor.data());
+  const action = body.action;
+  const data = (body.data ?? {}) as Record<string, { members?: Record<string, unknown> }>;
+  const db = getDb();
+  const audit = { editor: (await getSession()).userid, dt: nowDateTime() };
+
+  if (action === "create") {
+    const clean: CreatePayload[] = [];
+    for (const submitted of Object.values(data)) {
+      const { payload, fieldErrors } = validateSubmittedRow(submitted.members, true);
+      if (fieldErrors.length > 0) return fieldErrorResponse(fieldErrors);
+      clean.push(payload as CreatePayload);
+    }
+
+    const savedRows: MemberRow[] = [];
+    for (const row of clean) {
+      // Upsert on the (committee_id, userid) unique key so a concurrent or
+      // pre-existing membership row is updated rather than erroring. A legacy
+      // role that already displays as the submitted code is left alone.
+      const existing = (await db(MEMBERS)
+        .where({ committee_id: row.committee_id, userid: row.userid })
+        .first("role")) as { role: string | null } | undefined;
+      const keepStoredRole = isEquivalentLegacyRole(existing?.role, row.role);
+      await writable(MEMBERS)
+        .insert({ ...row, ...audit })
+        .onConflict(["committee_id", "userid"])
+        .merge(keepStoredRole ? { ...audit } : { role: row.role, ...audit });
+      const saved = (await memberQuery()
+        .where("m.committee_id", row.committee_id)
+        .where("m.userid", row.userid)
+        .first()) as MemberRow | undefined;
+      if (saved) savedRows.push(saved);
+    }
+    return NextResponse.json({ data: savedRows.map(toWireRow) });
+  }
+
+  if (action === "edit") {
+    const updates: { id: number; payload: Partial<CreatePayload> }[] = [];
+    for (const [rowId, submitted] of Object.entries(data)) {
+      const id = parseRowId(rowId);
+      if (id === null) {
+        throw new ApiError(400, `Invalid row id: ${rowId}`);
+      }
+      const { payload, fieldErrors } = validateSubmittedRow(submitted.members, false);
+      if (fieldErrors.length > 0) return fieldErrorResponse(fieldErrors);
+      updates.push({ id, payload });
+    }
+
+    const savedRows: MemberRow[] = [];
+    for (const { id, payload } of updates) {
+      // Don't flatten a legacy role (e.g. "Co-Chair") when the submitted code
+      // already displays as what is stored — see isEquivalentLegacyRole.
+      const next = { ...payload };
+      if (next.role !== undefined) {
+        const existing = (await db(MEMBERS).where("id", id).first("role")) as
+          | { role: string | null }
+          | undefined;
+        if (isEquivalentLegacyRole(existing?.role, next.role)) {
+          delete next.role;
+        }
+      }
+      await writable(MEMBERS)
+        .where("id", id)
+        .update({ ...next, ...audit });
+      const saved = (await memberQuery().where("m.id", id).first()) as MemberRow | undefined;
+      if (saved) savedRows.push(saved);
+    }
+    return NextResponse.json({ data: savedRows.map(toWireRow) });
+  }
+
+  if (action === "remove") {
+    const ids = Object.keys(data).map(parseRowId);
+    if (ids.some((id) => id === null)) {
+      throw new ApiError(400, "Invalid row id in remove request");
+    }
+    await writable(MEMBERS)
+      .whereIn("id", ids as number[])
+      .delete();
+    return NextResponse.json({ data: [] });
+  }
+
+  throw new ApiError(400, `Unsupported Editor action: ${String(action)}`);
 });

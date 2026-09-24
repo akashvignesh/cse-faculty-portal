@@ -8,7 +8,7 @@ describe("FacultyTabNav", () => {
 
     const tabs = screen.getAllByRole("tab");
     expect(tabs).toHaveLength(7);
-    expect(screen.getByRole("tab", { name: "Research Area" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Research Areas" })).toHaveAttribute(
       "aria-selected",
       "true"
     );
@@ -22,7 +22,7 @@ describe("FacultyTabNav", () => {
     const onSelect = vi.fn();
     render(<FacultyTabNav activeTab={DETAIL_TABS.RESEARCH_AREA} onSelect={onSelect} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "Committee" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Committees" }));
     expect(onSelect).toHaveBeenCalledWith(DETAIL_TABS.COMMITTEE);
 
     fireEvent.click(screen.getByRole("tab", { name: "Awards" }));

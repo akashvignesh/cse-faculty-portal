@@ -6,15 +6,15 @@ import type { IDtRequest } from "datatables.net-editor-server";
 // header rejects all slot writes, and edits to the header itself are only
 // allowed when they unlock it.
 
-type SubmittedRows = Record<string, Record<string, Record<string, unknown>>>;
+export type SubmittedRows = Record<string, Record<string, Record<string, unknown>>>;
 
 const LOCKED_MESSAGE = "This course plan is locked and cannot be modified.";
 
-function submittedRows(http: IDtRequest): SubmittedRows {
+export function submittedRows(http: IDtRequest): SubmittedRows {
   return (http.data ?? {}) as unknown as SubmittedRows;
 }
 
-function rowIdsFromKeys(rows: SubmittedRows, idPrefix = "row_"): string[] {
+export function rowIdsFromKeys(rows: SubmittedRows, idPrefix = "row_"): string[] {
   return Object.keys(rows)
     .filter((key) => key.startsWith(idPrefix))
     .map((key) => key.slice(idPrefix.length));

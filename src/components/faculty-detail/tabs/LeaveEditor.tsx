@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePermission } from "@/components/auth/AuthProvider";
 import { LEAVE_TYPES } from "@/lib/leaveTypes";
 import { loadLeaves, saveLeaves, type LeaveDraft } from "@/services/faculty/leaveService";
 import type { Faculty } from "@/types/faculty";
@@ -20,7 +21,15 @@ function blankRow(): LeaveDraft {
  * Editable faculty leave grid. In db mode it loads/saves through the Editor
  * route; in mock mode it shows the read-only faculty.leaves data with a note.
  */
-export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
+export default function LeaveEditor({
+  faculty,
+  editing = true,
+}: {
+  faculty: Faculty;
+  /** When false, the grid is read-only (no Add/Remove/Save, inputs disabled). */
+  editing?: boolean;
+}) {
+  const { can } = usePermission();
   const [rows, setRows] = useState<LeaveDraft[]>([]);
   const [baseline, setBaseline] = useState<LeaveDraft[]>([]);
   const [editorAvailable, setEditorAvailable] = useState(false);
@@ -85,8 +94,13 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
     setMessage({ text: "", type: "" });
   }
 
+  // Editable only inside the page's edit mode, and only for roles that may edit
+  // leave (chair/staff). Server-enforced too (faculty-leave has no own tier).
+  const canEditLeave = editorAvailable && can("faculty-leave:edit");
+  const editable = editing && canEditLeave;
+
   async function handleSave() {
-    if (!faculty.personNumber || !editorAvailable) {
+    if (!faculty.personNumber || !editable) {
       setMessage({
         text: "Editing requires the database backend (mock mode is read-only).",
         type: "error",
@@ -125,9 +139,13 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
 
   return (
     <div className="leave-editor">
-      {!editorAvailable && (
+      {!editable && (
         <div className="faculty-table-status" role="status">
-          Showing read-only leave data — editing requires the database backend.
+          {!editorAvailable
+            ? "Showing read-only leave data — editing requires the database backend."
+            : canEditLeave
+              ? "Leave is read-only. Use Edit Profile to make changes."
+              : "You have read-only access to leave records."}
         </div>
       )}
 
@@ -140,13 +158,13 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
             <th>Location</th>
             <th>Reason</th>
             <th>Backup Faculty (person #)</th>
-            {editorAvailable && <th aria-label="Row actions" />}
+            {editable && <th aria-label="Row actions" />}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={editorAvailable ? 7 : 6} className="leave-editor-empty">
+              <td colSpan={editable ? 7 : 6} className="leave-editor-empty">
                 No leave records.
               </td>
             </tr>
@@ -156,7 +174,7 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
                 <td>
                   <select
                     value={row.leaveType}
-                    disabled={!editorAvailable}
+                    disabled={!editable}
                     onChange={(e) => updateRow(index, { leaveType: e.target.value })}
                     aria-label="Leave type"
                   >
@@ -174,7 +192,7 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
                   <input
                     type="date"
                     value={row.startDate}
-                    disabled={!editorAvailable}
+                    disabled={!editable}
                     onChange={(e) => updateRow(index, { startDate: e.target.value })}
                     aria-label="Start date"
                   />
@@ -183,7 +201,7 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
                   <input
                     type="date"
                     value={row.endDate}
-                    disabled={!editorAvailable}
+                    disabled={!editable}
                     onChange={(e) => updateRow(index, { endDate: e.target.value })}
                     aria-label="End date"
                   />
@@ -192,7 +210,7 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
                   <input
                     type="text"
                     value={row.location}
-                    disabled={!editorAvailable}
+                    disabled={!editable}
                     onChange={(e) => updateRow(index, { location: e.target.value })}
                     aria-label="Location"
                   />
@@ -201,7 +219,7 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
                   <input
                     type="text"
                     value={row.reason}
-                    disabled={!editorAvailable}
+                    disabled={!editable}
                     onChange={(e) => updateRow(index, { reason: e.target.value })}
                     aria-label="Reason"
                   />
@@ -210,7 +228,7 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
                   <input
                     type="text"
                     value={row.backupFacultyPersonNumber}
-                    disabled={!editorAvailable}
+                    disabled={!editable}
                     maxLength={8}
                     onChange={(e) =>
                       updateRow(index, { backupFacultyPersonNumber: e.target.value })
@@ -218,7 +236,7 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
                     aria-label="Backup faculty person number"
                   />
                 </td>
-                {editorAvailable && (
+                {editable && (
                   <td>
                     <button
                       type="button"
@@ -236,7 +254,7 @@ export default function LeaveEditor({ faculty }: { faculty: Faculty }) {
         </tbody>
       </table>
 
-      {editorAvailable && (
+      {editable && (
         <div className="leave-editor-actions">
           <button type="button" className="cp-save-btn" onClick={addRow} disabled={saving}>
             Add Leave

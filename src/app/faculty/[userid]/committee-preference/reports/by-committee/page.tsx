@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { usePermission } from "@/components/auth/AuthProvider";
 import CommitteeReportByCommitteeTable from "@/components/committee-preference/CommitteeReportByCommitteeTable";
 import DetailSidebar from "@/components/faculty-detail/DetailSidebar";
 import { APP_TITLE } from "@/config/appConfig";
@@ -17,6 +18,10 @@ export default function CommitteeReportByCommitteePage() {
   const params = useParams<{ userid: string }>();
   const userid = typeof params?.userid === "string" ? params.userid : "";
   const academicYear = useMemo(() => currentAcademicYear(), []);
+  const { can, isLoading: isAuthLoading } = usePermission();
+  // Committee reports are part of committee management — chair-only, matching
+  // the matrix page (the data endpoints reject non-chair reads server-side too).
+  const canViewCommittee = can("committee:view");
 
   const [records, setRecords] = useState<Faculty[]>([]);
   const [columns, setColumns] = useState<MatrixColumn[]>([]);
@@ -53,11 +58,15 @@ export default function CommitteeReportByCommitteePage() {
       }
     }
 
-    load();
+    if (!isAuthLoading && canViewCommittee) {
+      load();
+    } else if (!isAuthLoading) {
+      setIsLoading(false);
+    }
     return () => {
       isActive = false;
     };
-  }, [academicYear]);
+  }, [academicYear, isAuthLoading, canViewCommittee]);
 
   const faculty = useMemo(() => findFacultyByUserid(records, userid), [records, userid]);
 
@@ -72,7 +81,14 @@ export default function CommitteeReportByCommitteePage() {
 
   return (
     <section className="faculty-detail-panel">
-      {isLoading ? (
+      {!isAuthLoading && !canViewCommittee ? (
+        <div className="faculty-detail-body">
+          <div className="faculty-table-status faculty-table-status-error" role="alert">
+            Committee management is handled by the department chair. Your role does not have access
+            to committee reports.
+          </div>
+        </div>
+      ) : isLoading ? (
         <div className="faculty-detail-body">
           <div className="faculty-table-status" role="status">
             Loading committee report…

@@ -6,6 +6,10 @@
 
 import { afterAll, describe, expect, it } from "vitest";
 
+// RBAC: writes require an authorized session; run these tests as chair so the
+// pre-RBAC assertions are unchanged (role scenarios live in rbacEditorRoutes).
+process.env.DEV_ROLE ??= "chair";
+
 const runDbTests = process.env.RUN_DB_TESTS === "1";
 const describeDb = runDbTests ? describe : describe.skip;
 
@@ -20,7 +24,7 @@ describeDb("editor routes (db mode)", () => {
   afterAll(async () => {
     const { getDb } = await import("@/lib/db");
     const db = getDb();
-    await db("cfp_committee_assignment").where("academic_year", TEST_YEAR).delete();
+    await db("committees.members").where("userid", TEST_USER).delete();
     await db("cfp_faculty_course_plan").where("academic_year", TEST_YEAR).delete();
     await db.destroy();
   });
@@ -28,12 +32,12 @@ describeDb("editor routes (db mode)", () => {
   it("creates, edits, and removes a committee assignment", async () => {
     const route = await loadRoute("@/app/api/editor/committee-assignments/route");
     const { getDb } = await import("@/lib/db");
-    const catalog = await getDb()
-      .select("catalog_id")
-      .from("cfp_committee_catalog")
-      .orderBy("catalog_id")
-      .first<{ catalog_id: number }>();
-    expect(catalog).toBeDefined();
+    const committee = await getDb()
+      .select("id")
+      .from("committees.committees")
+      .orderBy("id")
+      .first<{ id: number }>();
+    expect(committee).toBeDefined();
 
     // create
     const createResponse = await route.POST(
@@ -44,11 +48,10 @@ describeDb("editor routes (db mode)", () => {
           action: "create",
           data: {
             "0": {
-              cfp_committee_assignment: {
-                catalog_id: catalog?.catalog_id,
+              members: {
+                committee_id: committee?.id,
                 userid: TEST_USER,
-                role_code: "X",
-                academic_year: TEST_YEAR,
+                role: "Member",
               },
             },
           },
@@ -61,14 +64,14 @@ describeDb("editor routes (db mode)", () => {
     expect(created.data).toHaveLength(1);
     const rowId = created.data[0].DT_RowId;
 
-    // invalid enum is rejected with a fieldError
+    // a role outside the allowed vocabulary is rejected with a fieldError
     const invalidResponse = await route.POST(
       new Request("http://test/api/editor/committee-assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "edit",
-          data: { [rowId]: { cfp_committee_assignment: { role_code: "Z" } } },
+          data: { [rowId]: { members: { role: "Emperor" } } },
         }),
       }),
       {}
@@ -83,13 +86,13 @@ describeDb("editor routes (db mode)", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "edit",
-          data: { [rowId]: { cfp_committee_assignment: { role_code: "C" } } },
+          data: { [rowId]: { members: { role: "Chair" } } },
         }),
       }),
       {}
     );
     const edited = await editResponse.json();
-    expect(edited.data[0].cfp_committee_assignment.role_code).toBe("C");
+    expect(edited.data[0].members.role).toBe("Chair");
 
     // remove
     const removeResponse = await route.POST(

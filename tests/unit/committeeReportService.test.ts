@@ -43,12 +43,15 @@ function makeFaculty(userid: string, name: string): Faculty {
   };
 }
 
-function makeColumn(
-  id: number,
-  name: string,
-  type: "role" | "committee"
-): MatrixColumn {
-  return { id, name, type, category: null, servicePoints: null };
+function makeColumn(id: number, name: string, type: "role" | "committee"): MatrixColumn {
+  return {
+    id,
+    name,
+    type,
+    kind: type === "role" ? "leadership" : "committee",
+    category: null,
+    servicePoints: null,
+  };
 }
 
 const chairRole = makeColumn(1, "Associate Chair", "role");
@@ -83,7 +86,10 @@ describe("bucketForCell", () => {
 });
 
 describe("buildByNameReport", () => {
-  const records = [makeFaculty("roshana", "Roshan Ayyalasomayajula"), makeFaculty("jsmith", "John Smith")];
+  const records = [
+    makeFaculty("roshana", "Roshan Ayyalasomayajula"),
+    makeFaculty("jsmith", "John Smith"),
+  ];
   const columns = [chairRole, gradAdmissions, colloquium];
   const memberships = {
     "roshana-1": "X",
@@ -115,7 +121,10 @@ describe("buildByNameReport", () => {
 });
 
 describe("buildByCommitteeReport", () => {
-  const records = [makeFaculty("roshana", "Roshan Ayyalasomayajula"), makeFaculty("jsmith", "John Smith")];
+  const records = [
+    makeFaculty("roshana", "Roshan Ayyalasomayajula"),
+    makeFaculty("jsmith", "John Smith"),
+  ];
   const columns = [chairRole, gradAdmissions];
   const memberships = {
     "roshana-1": "X",

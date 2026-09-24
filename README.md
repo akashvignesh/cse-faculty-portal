@@ -64,11 +64,25 @@ DB_PORT=3307
 DB_USER=...        # never commit credentials
 DB_PASSWORD=...
 DB_DATABASE=ubs_emp
-DEV_USERID=...     # stamped into cfp_* audit columns until real auth lands
+DEV_USERID=...     # acts as the signed-in user until real auth lands
+DEV_ROLE=...       # optional: force the RBAC role (chair|staff|faculty|viewer)
 ```
 
 If the tunnel is down, API routes answer `503` with a clear message instead
 of hanging.
+
+## Documentation
+
+- [`docs/business-logic.md`](docs/business-logic.md) — every domain rule the
+  portal encodes: faculty types & load, role releases, semester planning &
+  validation, the 0–5 (NQ) preference scale, academic-year locking, biannual
+  carry-forward, leaves, the committee matrix, and area tags.
+- [`docs/sql-reference.md`](docs/sql-reference.md) — every database call: where
+  it lives, what it touches, how to add a field at each layer.
+- [`docs/api-sql-flowchart.md`](docs/api-sql-flowchart.md) — request → route →
+  query → table flow.
+- [`docs/deployment.md`](docs/deployment.md) — Docker / self-hosted-runner
+  deploy on a2il-01.
 
 ## Architecture
 
@@ -99,22 +113,45 @@ src/
 
 Key invariants:
 
-- **Write allowlist** — only ten `ubs_emp.cfp_*` tables are writable (the
-  `WRITABLE_TABLES` set in `src/lib/db.ts`, also enforced in
-  `src/lib/editor/factory.ts`): the nine app-created tables (course/semester
-  plan, faculty role, the three committee tables, service categories/summary,
-  the two area-tag tables) plus the pre-existing `cfp_faculty_leave`, which the
-  leave editor now writes. All other university tables (`committees.*`,
-  `people.*`, `ps_rpt.*`, `dce.*`, the pre-existing `cfp_faculty`) are read-only
-  by ground rule. Exception: `people.cfp_faculty_teaching_prefs` accepts DML via
-  plain knex.
+- **Write allowlist** — `WRITABLE_TABLES` in `src/lib/db.ts` is the single
+  source of truth for every table the app may write, whichever path performs
+  the write. Both paths go through it: the Editor factory calls
+  `assertWritable()`, and the hand-rolled knex routes and query modules build
+  their statements with `writable(table[, trx])`. Reads may use `getDb()`
+  directly. The list covers the nine Editor tables (course/semester plan,
+  faculty role, service categories/summary, the two area-tag tables,
+  `cfp_user_role`, and the pre-existing `cfp_faculty_leave`), the four contact
+  tables the profile editor writes, and three cross-schema tables:
+  `people.cfp_faculty_teaching_prefs`, `committees.members` (the committee
+  matrix's storage) and `committees.committees` (its column list — the catalog
+  route creates, renames and **hard-deletes** committees, cascading through
+  `members`, so this is a real exception to "committees.\* is upstream data").
+  `cfp_committee_assignment` is retired; `cfp_committee_catalog` lives on as
+  the matrix's column-metadata overlay. Everything else (`people.*`,
+  `ps_rpt.*`, `dce.*`, `ubs_rf.*`, the pre-existing `cfp_faculty`) is
+  read-only by ground rule — `tests/unit/writableTables.test.ts` pins the list
+  so it cannot drift again.
 - **Identity bridge** — course plans key on `person_number`; committee
   assignments and teaching preferences key on `userid`. `dce.person_number`
   maps between them (`src/server/queries/identity.ts`). API routes accept
   either identifier.
 - **Audit stamping** — every write sets `editor` (userid) and `dt`; `ts` is
-  DB-managed. The current user comes from the `getCurrentUser()` seam in
-  `src/lib/auth.ts` (returns `DEV_USERID` until SSO lands).
+  DB-managed. The current user comes from the `getSession()` seam in
+  `src/lib/auth.ts` (dev cookie → `DEV_USERID` until SSO lands).
+- **RBAC** — four roles (`chair`, `staff`, `faculty`, `viewer`) with a single
+  boolean `ACCESS` grid in `src/lib/permissions.ts` shared by the server guard
+  (`src/lib/editor/rbac.ts`, attached to every Editor route) and the client
+  context (`src/components/auth/AuthProvider.tsx`). Committee management is
+  chair-only (writes *and* reads — see `docs/business-logic.md` §12); staff
+  edits everything else department-wide; faculty edits only their own rows;
+  viewer is read-only. Roles live in `ubs_emp.cfp_user_role`
+  (mock: `src/data/userRoleMockData.ts`); a roster member without a row
+  defaults to `faculty`, everyone else to `viewer`. Enforcement is
+  server-side (403); UI hiding is UX only. The chair manages assignments on
+  `/user-roles`; a lockout guard rejects any change that would leave zero
+  chairs (assign the new chair first, then step down). A dev-only role
+  switcher (bottom-right widget, `/api/dev/impersonate`) is available
+  outside production for testing each role.
 - **Term codes** — `[century][YY][term]` with century digit `+18`
   (Fall 2025 = `2259`); helpers and tests in `src/lib/term.ts`.
 
@@ -137,11 +174,23 @@ mysql $T < db/seed/test_faculty_unseed.sql
 # 3. Widen people.cfp_faculty_teaching_prefs.pref CHECK from 0–4 to 0–5
 #    (the UI/API rating scale is 0..5 — 0 = Not Qualified).
 mysql $T < db/migration/widen_teaching_pref_check.sql
-# 4. Seed five test faculty across every table the portal reads/edits.
+# 4. (Re-runnable) seed the five leadership "Roles" matrix columns into
+#    committees.committees (cms_display=0) so their marks can be stored in
+#    committees.members with every other matrix cell.
+#    MUST precede the seed — step 5 resolves those columns by name.
+mysql $T < db/migration/seed_leadership_committees.sql
+# 5. Seed five test faculty across every table the portal reads/edits.
 mysql $T < db/seed/test_faculty_seed.sql
-# 5. (Optional, re-runnable) derive committee assignments from the live roster
-#    and the per-year roles. Non-destructive; set @ay inside the file.
-mysql $T < db/migration/autofill_committee_assignments.sql
+```
+
+On a database seeded before the committee-matrix rewrite, the leadership
+holders are still stranded in the retired `cfp_committee_assignment`, so the
+matrix's leadership row renders empty. Move them across once — review the
+names first, since on oceanus they came from the seed rather than the
+department:
+
+```bash
+mysql $T < db/migration/backfill_leadership_members.sql
 ```
 
 > Collation note for any new cross-schema script: oceanus' server default is
@@ -157,9 +206,11 @@ $env:RUN_DB_TESTS="1"; $env:FACULTY_DATA_MODE="db"; npx vitest run tests/api
 
 ## Security caveats
 
-- **No authentication yet.** Every request acts as `DEV_USERID`; mutating
-  endpoints are unprotected. Do not expose beyond the department network
-  until SSO/Shibboleth is integrated at the `getCurrentUser()` seam.
+- **No real authentication yet.** Every request acts as `DEV_USERID` (or the
+  dev-switcher cookie). Authorization *is* enforced — mutating endpoints
+  check the RBAC matrix and row ownership server-side — but identity is not
+  verified, so do not expose beyond the department network until
+  SSO/Shibboleth is integrated at the `getSession()` seam in `src/lib/auth.ts`.
 - Request a dedicated MySQL account (SELECT on university schemas, DML only
   on `ubs_emp.cfp_*`) instead of a personal account — defense in depth on
   top of the app-level allowlist.

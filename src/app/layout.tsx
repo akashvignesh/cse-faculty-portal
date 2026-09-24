@@ -6,6 +6,8 @@ import "datatables.net-buttons-dt/css/buttons.dataTables.css";
 import "@/styles/globals.css";
 import "@/styles/faculty-portal.css";
 
+import { AuthProvider } from "@/components/auth/AuthProvider";
+import DevRoleSwitcher from "@/components/dev/DevRoleSwitcher";
 import FacultyPortalHeader from "@/components/FacultyPortalHeader";
 import PortalFooter from "@/components/PortalFooter";
 import { APP_TITLE } from "@/config/appConfig";
@@ -42,13 +44,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           this element only (one level deep) — it does not mask real mismatches
           in the component tree below. */}
       <body suppressHydrationWarning>
-        <div className="portal-page-shell">
-          <div className="portal-page">
-            <FacultyPortalHeader />
-            {children}
-            <PortalFooter />
+        <AuthProvider>
+          <div className="portal-page-shell">
+            <div className="portal-page">
+              <FacultyPortalHeader />
+              {children}
+              <PortalFooter />
+            </div>
           </div>
-        </div>
+          <DevRoleSwitcher />
+        </AuthProvider>
       </body>
     </html>
   );

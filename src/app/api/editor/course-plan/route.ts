@@ -14,8 +14,12 @@ const TABLE = "cfp_faculty_course_plan";
 
 const FACULTY_TYPES = ["Prof Track", "Lecture 10", "Lecture 12"];
 
-function buildEditor(): Editor {
-  return createEditor(TABLE, "course_plan_id")
+async function buildEditor(): Promise<Editor> {
+  const { editor, session } = await createEditor(TABLE, "course_plan_id", {
+    resource: "course-plan",
+    ownership: "person_number",
+  });
+  return editor
     .fields(
       // Pkey as read-only field so GET rows are self-describing.
       new Field(`${TABLE}.course_plan_id`).set(false),
@@ -27,14 +31,14 @@ function buildEditor(): Editor {
         .validator(academicYearValidator),
       new Field(`${TABLE}.faculty_type`).validator(Validate.values(FACULTY_TYPES)),
       new Field(`${TABLE}.locked`).validator(Validate.values(["0", "1", 0, 1])),
-      ...auditFields(TABLE)
+      ...auditFields(TABLE, session)
     )
     .validator(coursePlanLockValidator);
 }
 
 /** GET /api/editor/course-plan?person_number=&academic_year= */
 export const GET = withErrorHandler(async (request: Request) => {
-  const editor = buildEditor();
+  const editor = await buildEditor();
   const url = new URL(request.url);
   const personNumber = url.searchParams.get("person_number");
   if (personNumber) {
@@ -51,7 +55,7 @@ export const GET = withErrorHandler(async (request: Request) => {
 /** POST /api/editor/course-plan — Editor protocol create/edit/remove */
 export const POST = withErrorHandler(async (request: Request) => {
   const body = await parseEditorBody(request);
-  const editor = buildEditor();
+  const editor = await buildEditor();
   await editor.process(body);
   return NextResponse.json(editor.data());
 });

@@ -16,8 +16,12 @@ const PLAN = "cfp_faculty_course_plan";
 const TERMS = ["summer", "fall", "spring"];
 const SLOT_STATUSES = ["Teaching", "Not Teaching"];
 
-function buildEditor(): Editor {
-  return createEditor(TABLE, "semester_plan_id")
+async function buildEditor(): Promise<Editor> {
+  const { editor, session } = await createEditor(TABLE, "semester_plan_id", {
+    resource: "course-plan",
+    ownership: "via-course-plan",
+  });
+  return editor
     .fields(
       // Pkey as read-only field so GET rows are self-describing.
       new Field(`${TABLE}.semester_plan_id`).set(false),
@@ -29,7 +33,7 @@ function buildEditor(): Editor {
         .validator(Validate.notEmpty())
         .validator(Validate.values(SLOT_STATUSES)),
       new Field(`${TABLE}.slot_comment`).validator(Validate.maxLen(60)),
-      ...auditFields(TABLE),
+      ...auditFields(TABLE, session),
       // Read-only header columns for display/filtering.
       new Field(`${PLAN}.person_number`).set(false),
       new Field(`${PLAN}.academic_year`).set(false),
@@ -41,7 +45,7 @@ function buildEditor(): Editor {
 
 /** GET /api/editor/semester-plan?person_number=&academic_year=&course_plan_id= */
 export const GET = withErrorHandler(async (request: Request) => {
-  const editor = buildEditor();
+  const editor = await buildEditor();
   const url = new URL(request.url);
   const coursePlanId = url.searchParams.get("course_plan_id");
   if (coursePlanId) {
@@ -62,7 +66,7 @@ export const GET = withErrorHandler(async (request: Request) => {
 /** POST /api/editor/semester-plan — Editor protocol create/edit/remove */
 export const POST = withErrorHandler(async (request: Request) => {
   const body = await parseEditorBody(request);
-  const editor = buildEditor();
+  const editor = await buildEditor();
   await editor.process(body);
   return NextResponse.json(editor.data());
 });

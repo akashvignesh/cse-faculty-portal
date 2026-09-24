@@ -1,7 +1,7 @@
 // Browser-side helper that speaks the DataTables Editor wire protocol to our
 // /api/editor/* routes — no licensed Editor client involved. Field names must
 // be fully qualified (table.column) and submitted data nests accordingly:
-//   rows = { "row_7": { cfp_committee_assignment: { role_code: "C" } } }
+//   rows = { "row_7": { members: { role: "Chair" } } }
 // Use row id 0 (or any placeholder) for creates.
 
 export type EditorAction = "create" | "edit" | "remove";
@@ -15,6 +15,8 @@ export interface EditorFieldError {
 export interface EditorResponse<TRow = Record<string, unknown>> {
   data?: TRow[];
   error?: string;
+  /** Set by our ApiResponse error envelope (e.g. RBAC 403s), not by Editor. */
+  message?: string;
   fieldErrors?: EditorFieldError[];
   cancelled?: string[];
   options?: Record<string, unknown>;
@@ -53,7 +55,9 @@ export async function editorLoad<TRow = Record<string, unknown>>(
   });
   const payload = (await response.json()) as EditorResponse<TRow>;
   if (!response.ok) {
-    throw new EditorError(payload.error ?? `Editor load failed with status ${response.status}`);
+    throw new EditorError(
+      payload.error ?? payload.message ?? `Editor load failed with status ${response.status}`
+    );
   }
   return throwOnError(payload).data ?? [];
 }
@@ -75,7 +79,9 @@ export async function editorSubmit<TRow = Record<string, unknown>>(
 
   const payload = (await response.json()) as EditorResponse<TRow>;
   if (!response.ok) {
-    throw new EditorError(payload.error ?? `Editor submit failed with status ${response.status}`);
+    throw new EditorError(
+      payload.error ?? payload.message ?? `Editor submit failed with status ${response.status}`
+    );
   }
   return throwOnError(payload);
 }

@@ -11,6 +11,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // Route/server modules import the "server-only" poison pill, which
+      // throws under vitest; stub it so API tests can import routes.
+      "server-only": path.resolve(__dirname, "tests/stubs/server-only.ts"),
       "@": path.resolve(__dirname, "src"),
     },
   },
