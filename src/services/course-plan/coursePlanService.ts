@@ -260,6 +260,8 @@ export async function saveRoles(
 
 export interface SavePreferencesResult {
   totalProcessed: number;
+  /** Courses with a preference in effect after this save (the running total, not the diff). */
+  totalSelected: number;
   message: string;
 }
 
@@ -274,6 +276,7 @@ export async function saveCourseRankings(
   baseline: PlannerCoursePreference[]
 ): Promise<SavePreferencesResult> {
   const currentByName = new Map(preferences.map((p) => [p.courseName, p]));
+  const totalSelected = preferences.length;
 
   const items: { courseName: string; pref: number | null }[] = preferences.map((p) => ({
     courseName: p.courseName,
@@ -286,7 +289,7 @@ export async function saveCourseRankings(
   }
 
   if (items.length === 0) {
-    return { totalProcessed: 0, message: "No course preference changes to save." };
+    return { totalProcessed: 0, totalSelected, message: "No course preference changes to save." };
   }
 
   const response = await fetch(
@@ -309,6 +312,7 @@ export async function saveCourseRankings(
 
   return {
     totalProcessed: payload.data?.totalProcessed ?? items.length,
+    totalSelected,
     message: payload.message ?? "Teaching preferences saved successfully",
   };
 }

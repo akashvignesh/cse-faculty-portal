@@ -133,7 +133,7 @@ export const FACULTY_YEAR_DATA: Record<string, Record<string, YearData>> = {
     "2025-2026": lecture10Year(
       "ab-25",
       [
-        pref("ab-cp1", "CSE115", "115LLB-Introduction to Computer Science I", 5),
+        pref("ab-cp1", "CSE115", "115LLR-Introduction to Computer Science I", 5),
         pref("ab-cp2", "CSE116", "116LLB-Introduction to Computer Science II", 5),
         pref("ab-cp3", "CSE331", "331LR-Algorithms and Complexity", 4),
         pref("ab-cp4", "CSE431", "431LEC-Algorithms Analysis and Design", 4),

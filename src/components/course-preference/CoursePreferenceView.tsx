@@ -375,7 +375,7 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
         [selectedYear]: currentYearData.coursePreferences,
       }));
       setSaveMessage({
-        text: `${result.message} (${result.totalProcessed} course${result.totalProcessed === 1 ? "" : "s"}).`,
+        text: `${result.message} (${result.totalSelected} course${result.totalSelected === 1 ? "" : "s"} selected).`,
         type: "success",
       });
     } catch (error) {
@@ -572,6 +572,7 @@ export default function CoursePreferenceView({ userid }: { userid: string }) {
                         renderSemesterPlanning()
                       ) : (
                         <CoursePreferenceSection
+                          userid={faculty.userid || userid}
                           preferences={currentYearData.coursePreferences}
                           isLocked={isCurrentYearLocked}
                           onChange={updateCoursePreferences}

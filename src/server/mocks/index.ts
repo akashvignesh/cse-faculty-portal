@@ -77,36 +77,34 @@ export async function getTeachingHistory(
   };
 }
 
-const LEGACY_PREF_LABELS: Record<string, number> = {
-  "not qualified": 0,
-  qualified: 0,
-  preference1: 1,
-  preference2: 2,
-  preference3: 3,
-};
+// Local mode has no real database, but saves should still round-trip within
+// a session so the grid, the read-only detail tab, and the printable report
+// all agree on what was actually saved. This in-memory store (keyed by
+// canonical userid -> courseName) starts empty per faculty member and is
+// mutated by saveTeachingPreferences; it does not survive a server restart.
+const teachingPrefsStore = new Map<
+  string,
+  Map<string, { courseId: string; pref: number; termCode: string | null }>
+>();
 
-function toNumericPref(preference: RawFacultyRecord): number {
-  if (typeof preference.priority === "number") return preference.priority;
-  const label = String(preference.coursePref ?? "")
-    .trim()
-    .toLowerCase();
-  return LEGACY_PREF_LABELS[label] ?? 0;
+function canonicalUserid(record: RawFacultyRecord | null, fallback: string): string {
+  return String(record?.userid ?? fallback).trim().toLowerCase();
 }
 
 export async function getTeachingPreferences(userid: string): Promise<TeachingPreferencesResponse> {
   const record = findRecord(userid);
-  const preferences = (record?.coursePreferences ?? []) as RawFacultyRecord[];
+  const stored = teachingPrefsStore.get(canonicalUserid(record, userid));
 
   return {
     facultyId: userid,
-    teachingPreferences: preferences.map((preference, index) => ({
-      courseId: String(preference.courseCode ?? preference.courseId ?? `MOCK-${index + 1}`),
-      courseName: [preference.courseCode, preference.preferredCourseName ?? preference.courseName]
-        .filter(Boolean)
-        .join("-"),
-      pref: toNumericPref(preference),
-      termCode: preference.termCode ? String(preference.termCode) : null,
-    })),
+    teachingPreferences: stored
+      ? Array.from(stored.entries()).map(([courseName, entry]) => ({
+          courseId: entry.courseId,
+          courseName,
+          pref: entry.pref,
+          termCode: entry.termCode,
+        }))
+      : [],
   };
 }
 
@@ -118,14 +116,35 @@ export async function saveTeachingPreferences(
     throw new BadRequestError("preferences list must not be empty");
   }
 
-  // Local mode has no persistence — echo the request as processed so the UI
-  // flow can be exercised offline.
-  const processed: SaveTeachingPreferenceResult[] = request.preferences.map((item, index) => ({
-    courseId: `MOCK-${index + 1}`,
-    courseName: item.courseName,
-    pref: item.pref,
-    action: item.pref === null ? "DELETED" : "SAVED",
-  }));
+  const record = findRecord(userid);
+  const key = canonicalUserid(record, userid);
+  let stored = teachingPrefsStore.get(key);
+  if (!stored) {
+    stored = new Map();
+    teachingPrefsStore.set(key, stored);
+  }
+
+  const processed: SaveTeachingPreferenceResult[] = request.preferences.map((item, index) => {
+    const courseId = stored!.get(item.courseName)?.courseId ?? `MOCK-${index + 1}`;
+
+    if (item.pref === null) {
+      stored!.delete(item.courseName);
+      return { courseId, courseName: item.courseName, pref: null, action: "DELETED" };
+    }
+
+    const existed = stored!.has(item.courseName);
+    stored!.set(item.courseName, {
+      courseId,
+      pref: item.pref,
+      termCode: request.termCode ?? null,
+    });
+    return {
+      courseId,
+      courseName: item.courseName,
+      pref: item.pref,
+      action: existed ? "UPDATED" : "SAVED",
+    };
+  });
 
   return {
     facultyId: userid,

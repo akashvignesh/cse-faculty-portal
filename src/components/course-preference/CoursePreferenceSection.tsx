@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { courseCatalogMockData } from "@/data/courseCatalogMockData";
 import type { PlannerCoursePreference } from "@/types/faculty";
@@ -16,6 +17,7 @@ export interface SaveMessage {
 }
 
 export interface CoursePreferenceSectionProps {
+  userid: string;
   preferences: PlannerCoursePreference[];
   isLocked: boolean;
   onChange: (preferences: PlannerCoursePreference[]) => void;
@@ -40,6 +42,7 @@ function deriveCourseCode(entry: CatalogCourse | null | undefined): string {
 }
 
 export default function CoursePreferenceSection({
+  userid,
   preferences,
   isLocked,
   onChange,
@@ -167,21 +170,27 @@ export default function CoursePreferenceSection({
             </button>
           </div>
 
-          {!isLocked && (
-            <div className="cp-pref-save-actions">
-              {saveMessage?.text && (
-                <span
-                  className={`cp-save-message cp-save-message-${saveMessage.type}`}
-                  role="status"
-                >
-                  {saveMessage.text}
-                </span>
-              )}
-              <button type="button" className="cp-save-btn cp-pref-save-btn" onClick={onSave}>
-                Save Preferences
-              </button>
-            </div>
-          )}
+          <div className="cp-pref-toolbar-right">
+            <Link href={`/faculty/${userid}/course-preference/reports`} className="cp-pref-report-link">
+              Reports
+            </Link>
+
+            {!isLocked && (
+              <div className="cp-pref-save-actions">
+                {saveMessage?.text && (
+                  <span
+                    className={`cp-save-message cp-save-message-${saveMessage.type}`}
+                    role="status"
+                  >
+                    {saveMessage.text}
+                  </span>
+                )}
+                <button type="button" className="cp-save-btn cp-pref-save-btn" onClick={onSave}>
+                  Save Preferences
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="cp-pref-grid-wrapper">
